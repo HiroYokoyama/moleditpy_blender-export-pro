@@ -7,7 +7,7 @@ colors, jitter and noise displacement, so users can iterate before exporting.
 
 import logging
 
-from .blender_codegen import extract_geometry, hex_to_rgb
+from .blender_codegen import extract_geometry, extract_rings, hex_to_rgb
 from .element_data import radius_of, color_of
 from .style_config import StyleConfig
 
@@ -171,7 +171,51 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
                 **mat,
             )
 
+    if cfg.ring_style == "panel":
+        _draw_ring_panels(plotter, mol, atoms, positions, cfg)
+
     try:
         plotter.render()
     except Exception:
         logging.debug("BlenderExportPro: plotter.render failed", exc_info=True)
+
+
+def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
+    """Draw rings (e.g. benzene) as translucent filled polygon panels."""
+    try:
+        rings = extract_rings(mol, None, cfg.ring_aromatic_only)
+    except Exception:
+        logging.exception("BlenderExportPro: ring extraction failed")
+        return
+
+    for idx, ring in enumerate(rings):
+        pts = positions[list(ring)].astype(float)
+        center = pts.mean(axis=0)
+        pts = center + (pts - center) * cfg.ring_scale
+        n_pts = len(pts)
+        face = np.hstack([[n_pts], np.arange(n_pts)])
+
+        if cfg.ring_color_mode == "match_atoms":
+            member_colors = [_atom_color(atoms[i][0], cfg) for i in ring]
+            color = tuple(sum(c[k] for c in member_colors) / n_pts
+                          for k in range(3))
+        else:
+            color = hex_to_rgb(cfg.ring_color)
+
+        try:
+            panel = pv.PolyData(pts, faces=face)
+            if cfg.ring_thickness > 0.0:
+                normal = np.cross(pts[1] - pts[0], pts[2] - pts[0])
+                norm_len = np.linalg.norm(normal)
+                if norm_len > 1e-9:
+                    normal = normal / norm_len * cfg.ring_thickness
+                    panel.points = panel.points - normal / 2.0
+                    panel = panel.extrude(normal, capping=True)
+            plotter.add_mesh(
+                panel,
+                color=color,
+                opacity=cfg.ring_opacity,
+                name=f"bep_ring_{idx}",
+            )
+        except Exception:
+            logging.exception("BlenderExportPro: ring panel preview failed")
