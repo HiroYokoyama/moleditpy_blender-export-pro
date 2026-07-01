@@ -14,13 +14,18 @@ the machine running MoleditPy.
   the 3D style list so you can iterate on the look inside MoleditPy (PyVista).
 - **Tabbed config panel** (`Visuals > Blender Export Pro…`): Presets, Atoms,
   Bonds, Deformation, Material, Scene, Export.
-- **Bundled presets**: Classic Ball-and-Stick, Cute Cartoon, Low-Poly Toy,
-  Glass Sculpture, Claymation, Metaball Blob — plus save/load of custom JSON
-  presets.
+- **20 bundled presets**: Classic Ball-and-Stick, Space-Filling CPK, Cute
+  Cartoon, Toon Comic, Low-Poly Toy, Paper Origami, Glass Sculpture, Ice
+  Crystal, Claymation, Gummy Candy, Jelly Wobble, Balloon Animal, Velvet
+  Plush, Wax Crayon, Stone Sculpture, Ceramic Figurine, Chalkboard Sketch,
+  Neon Glow, Gold Jewelry, Chrome Showroom, Copper Steampunk, Wire Model,
+  Holographic Display, Metaball Blob — plus save/load of custom JSON presets.
 - **Deformation**: noise displacement (`Displace` + clouds texture), bend /
   twist (`SimpleDeform`), subdivision smoothing, per-atom squash & stretch.
-- **Materials**: Principled BSDF presets (matte, plastic, metal, glass, toon,
-  clay) with version-robust socket naming (Blender 2.8x–4.x).
+- **18 material presets**: matte, plastic, metal, glass, toon, clay, chrome,
+  gold, copper, velvet, wax, gummy, ceramic, chalk, neon (emissive), ice,
+  stone, iridescent — Principled BSDF with version-robust socket naming
+  (Blender 2.8x–4.x) plus metallic tinting and emission.
 - **Scene setup**: 3-point studio lighting, world background, ground plane /
   shadow catcher, auto-framed camera, optional turntable animation.
 - **Partial export** of the current atom selection.
