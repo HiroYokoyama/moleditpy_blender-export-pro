@@ -85,6 +85,15 @@ def test_script_contains_geometry_and_config():
     assert "def main():" in script
 
 
+def test_script_contains_version_info():
+    from blender_export_pro.version import __version__
+
+    script = _generate()
+    assert f"Blender Export Pro v{__version__}" in script
+    assert f"GENERATOR_VERSION = '{__version__}'" in script
+    assert "Exported: " in script
+
+
 def test_script_never_imports_rdkit_or_pyvista():
     script = _generate()
     assert "rdkit" not in script

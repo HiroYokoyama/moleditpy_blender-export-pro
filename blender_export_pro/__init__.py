@@ -8,9 +8,10 @@ MoleditPy never imports bpy; the output is a plain Python text file.
 import logging
 
 from .style_config import STYLE_NAME, StyleConfig, load_config, save_config
+from .version import __version__
 
 PLUGIN_NAME = "Blender Export Pro"
-PLUGIN_VERSION = "0.1.0"
+PLUGIN_VERSION = __version__
 PLUGIN_AUTHOR = "HiroYokoyama"
 PLUGIN_DESCRIPTION = (
     "Stylized/deformed Blender export: cartoon, low-poly, glass, clay and "
