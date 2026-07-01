@@ -26,8 +26,9 @@ def test_initialize_registers_everything():
     assert style_name == plugin.STYLE_NAME
     assert callable(style_cb)
 
-    label, _cb = ctx.add_export_action.call_args[0]
-    assert "Blender Script" in label
+    export_labels = [call.args[0] for call in ctx.add_export_action.call_args_list]
+    assert any("Blender Script" in lbl for lbl in export_labels)
+    assert any(".glb" in lbl or "3D Model" in lbl for lbl in export_labels)
 
     ctx.register_save_handler.assert_called_once()
     ctx.register_load_handler.assert_called_once()
