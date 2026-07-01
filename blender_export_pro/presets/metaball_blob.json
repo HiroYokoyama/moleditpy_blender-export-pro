@@ -1,7 +1,7 @@
 {
     "atom_shape": "metaball",
     "atom_radius_mode": "cpk",
-    "atom_radius_scale": 0.75,
+    "atom_radius_scale": 0.5,
     "atom_jitter": 0.0,
     "bond_style": "cylinder",
     "bond_radius": 0.1,

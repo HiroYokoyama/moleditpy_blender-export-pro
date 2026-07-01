@@ -2,7 +2,7 @@
     "atom_shape": "ico_sphere",
     "atom_subdivisions": 1,
     "atom_radius_mode": "cpk",
-    "atom_radius_scale": 0.5,
+    "atom_radius_scale": 0.33,
     "atom_jitter": 0.15,
     "bond_style": "cylinder",
     "bond_segments": 5,

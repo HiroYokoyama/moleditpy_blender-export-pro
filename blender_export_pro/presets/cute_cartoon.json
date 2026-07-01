@@ -2,7 +2,7 @@
     "atom_shape": "uv_sphere",
     "atom_subdivisions": 4,
     "atom_radius_mode": "cpk",
-    "atom_radius_scale": 0.62,
+    "atom_radius_scale": 0.41,
     "atom_jitter": 0.35,
     "bond_style": "cylinder",
     "bond_radius": 0.18,

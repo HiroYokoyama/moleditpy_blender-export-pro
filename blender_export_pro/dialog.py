@@ -175,14 +175,15 @@ class BlenderExportDialog(QDialog):
         self.atom_radius_mode = QComboBox()
         self.atom_radius_mode.addItems(ATOM_RADIUS_MODES)
         self.atom_radius_mode.setToolTip(
-            "cpk: element-dependent radii · uniform: same radius for all atoms.")
+            "cpk: element-dependent van der Waals radii (RDKit, same as the "
+            "main app) · uniform: same radius for all atoms.")
         form.addRow("Radius mode:", self.atom_radius_mode)
 
         self.atom_radius_scale = self._dspin(
             0.05, 3.0, 0.05,
-            "Multiplier on the element (CPK) radius. ~0.45 = ball-and-stick, "
-            "~1.6 = space-filling.")
-        form.addRow("CPK radius scale:", self.atom_radius_scale)
+            "Multiplier on the RDKit van der Waals radius. 0.3 = "
+            "ball-and-stick (main app look), 1.0 = space-filling.")
+        form.addRow("vdW radius scale:", self.atom_radius_scale)
 
         self.uniform_radius = self._dspin(
             0.05, 3.0, 0.05, "Radius in Angstrom used when radius mode is 'uniform'.")

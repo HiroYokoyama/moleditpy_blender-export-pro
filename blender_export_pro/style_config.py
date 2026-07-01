@@ -33,7 +33,7 @@ class StyleConfig:
     atom_shape: str = "uv_sphere"
     atom_subdivisions: int = 3
     atom_radius_mode: str = "cpk"
-    atom_radius_scale: float = 0.45
+    atom_radius_scale: float = 0.3   # x RDKit vdW radius; 0.3 = main app look
     uniform_radius: float = 0.35
     atom_jitter: float = 0.0  # per-atom squash/stretch randomness (0..1)
 
