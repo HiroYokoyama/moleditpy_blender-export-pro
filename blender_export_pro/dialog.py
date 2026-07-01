@@ -189,11 +189,63 @@ class BlenderExportDialog(QDialog):
             0.05, 3.0, 0.05, "Radius in Angstrom used when radius mode is 'uniform'.")
         form.addRow("Uniform radius (Å):", self.uniform_radius)
 
+        self.hydrogen_scale = self._dspin(
+            0.0, 2.0, 0.05,
+            "Extra size factor for hydrogen atoms only. 0.5 = half-size H "
+            "(popular for cleaner renders), 1.0 = normal.")
+        form.addRow("Hydrogen size:", self.hydrogen_scale)
+
         self.atom_jitter = self._dspin(
             0.0, 1.0, 0.05,
             "Random squash & stretch per atom. 0 = perfect spheres, "
             "higher = hand-made / cartoon feel.")
         form.addRow("Squash/stretch jitter:", self.atom_jitter)
+
+        group = QGroupBox("Selected-Atom Sizes")
+        gform = QFormLayout(group)
+        group.setToolTip(
+            "Select atoms in the 2D/3D editor first, then resize just those "
+            "atoms here. Overrides are saved with the project.")
+
+        row = QHBoxLayout()
+        self.selection_scale = self._dspin(
+            0.05, 5.0, 0.05,
+            "Multiplier on the normal radius of each selected atom.")
+        self.selection_scale.setValue(1.5)
+        row.addWidget(self.selection_scale)
+        scale_btn = QPushButton("Scale Selected Atoms")
+        scale_btn.clicked.connect(self._scale_selected_atoms)
+        row.addWidget(scale_btn)
+        gform.addRow("Scale factor:", row)
+
+        row = QHBoxLayout()
+        self.selection_radius = self._dspin(
+            0.01, 5.0, 0.05,
+            "Absolute radius in Angstrom for each selected atom.")
+        self.selection_radius.setValue(0.5)
+        row.addWidget(self.selection_radius)
+        radius_btn = QPushButton("Set Radius of Selected")
+        radius_btn.clicked.connect(self._set_selected_atom_radius)
+        row.addWidget(radius_btn)
+        gform.addRow("Radius (Å):", row)
+
+        row = QHBoxLayout()
+        reset_sel_btn = QPushButton("Reset Selected")
+        reset_sel_btn.setToolTip(
+            "Remove size overrides from the selected atoms.")
+        reset_sel_btn.clicked.connect(self._reset_selected_atom_sizes)
+        row.addWidget(reset_sel_btn)
+        reset_all_btn = QPushButton("Reset All")
+        reset_all_btn.setToolTip("Remove all per-atom size overrides.")
+        reset_all_btn.clicked.connect(self._reset_all_atom_sizes)
+        row.addWidget(reset_all_btn)
+        gform.addRow(row)
+
+        self.atom_override_label = QLabel()
+        gform.addRow(self.atom_override_label)
+        self._update_atom_override_label()
+
+        form.addRow(group)
 
         self._tabs.addTab(tab, "Atoms")
 
@@ -488,6 +540,7 @@ class BlenderExportDialog(QDialog):
         ("atom_radius_mode", "combo"),
         ("atom_radius_scale", "float"),
         ("uniform_radius", "float"),
+        ("hydrogen_scale", "float"),
         ("atom_jitter", "float"),
         ("bond_style", "combo"),
         ("bond_radius", "float"),
@@ -582,6 +635,65 @@ class BlenderExportDialog(QDialog):
                 self._context.refresh_3d_view()
         except Exception:
             logging.exception("BlenderExportPro: live preview refresh failed")
+
+    # ------------------------------------------------------ atom size tools
+
+    def _selected_atoms_or_warn(self):
+        try:
+            selected = self._context.get_selected_atom_indices()
+        except Exception:
+            logging.exception("BlenderExportPro: selection lookup failed")
+            selected = None
+        if not selected:
+            QMessageBox.information(
+                self, "Blender Export Pro",
+                "No atoms are selected. Select atoms in the 2D or 3D "
+                "editor first.")
+            return None
+        return selected
+
+    def _update_atom_override_label(self):
+        count = len(self._cfg.atom_overrides or {})
+        self.atom_override_label.setText(
+            f"{count} atom(s) have a custom size." if count
+            else "No per-atom size overrides.")
+
+    def _apply_atom_override(self, override: dict):
+        selected = self._selected_atoms_or_warn()
+        if selected is None:
+            return
+        if not isinstance(self._cfg.atom_overrides, dict):
+            self._cfg.atom_overrides = {}
+        for idx in selected:
+            self._cfg.atom_overrides[str(int(idx))] = dict(override)
+        self._update_atom_override_label()
+        self._refresh_preview_if_active()
+        self._context.show_status_message(
+            f"Size applied to {len(selected)} atom(s).", 3000)
+
+    def _scale_selected_atoms(self):
+        self._pull_config()
+        self._apply_atom_override({"scale": float(self.selection_scale.value())})
+
+    def _set_selected_atom_radius(self):
+        self._pull_config()
+        self._apply_atom_override({"radius": float(self.selection_radius.value())})
+
+    def _reset_selected_atom_sizes(self):
+        selected = self._selected_atoms_or_warn()
+        if selected is None:
+            return
+        if isinstance(self._cfg.atom_overrides, dict):
+            for idx in selected:
+                self._cfg.atom_overrides.pop(str(int(idx)), None)
+        self._update_atom_override_label()
+        self._refresh_preview_if_active()
+
+    def _reset_all_atom_sizes(self):
+        self._cfg.atom_overrides = {}
+        self._update_atom_override_label()
+        self._refresh_preview_if_active()
+        self._context.show_status_message("All atom sizes reset.", 3000)
 
     # ---------------------------------------------------------- ring table
 
@@ -727,6 +839,7 @@ class BlenderExportDialog(QDialog):
         if path and sc.load_preset(self._cfg, path):
             self._refresh_widgets()
             self._refresh_ring_table()
+            self._update_atom_override_label()
             self._refresh_preview_if_active()
             self._context.show_status_message(f"Preset applied: {name}", 3000)
 
@@ -751,6 +864,7 @@ class BlenderExportDialog(QDialog):
         self._cfg.reset_defaults()
         self._refresh_widgets()
         self._refresh_ring_table()
+        self._update_atom_override_label()
         self._refresh_preview_if_active()
         self._context.show_status_message("Style reset to defaults.", 3000)
 
