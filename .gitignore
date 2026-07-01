@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Runtime user settings (written by the plugin)
+blender_export_pro/settings.json

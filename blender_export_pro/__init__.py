@@ -10,7 +10,7 @@ import logging
 from .style_config import StyleConfig, load_config, save_config
 
 PLUGIN_NAME = "Blender Export Pro"
-PLUGIN_VERSION = "2026.07.02"
+PLUGIN_VERSION = "0.1.0"
 PLUGIN_AUTHOR = "HiroYokoyama"
 PLUGIN_DESCRIPTION = (
     "Stylized/deformed Blender export: cartoon, low-poly, glass, clay and "
