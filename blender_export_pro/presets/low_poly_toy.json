@@ -1,0 +1,17 @@
+{
+    "atom_shape": "ico_sphere",
+    "atom_subdivisions": 1,
+    "atom_radius_mode": "cpk",
+    "atom_radius_scale": 0.55,
+    "atom_jitter": 0.1,
+    "bond_style": "cylinder",
+    "bond_segments": 6,
+    "bond_radius": 0.16,
+    "show_multiple_bonds": false,
+    "deformation_noise": 0.0,
+    "subdivision_level": 0,
+    "shade_smooth": false,
+    "material_preset": "matte",
+    "color_mode": "cpk",
+    "scene_preset": "studio"
+}
