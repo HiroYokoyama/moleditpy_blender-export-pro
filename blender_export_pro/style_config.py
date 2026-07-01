@@ -9,6 +9,8 @@ import json
 import logging
 import os
 
+STYLE_NAME = "Blender Export Pro (Preview)"
+
 ATOM_SHAPES = ("uv_sphere", "ico_sphere", "metaball")
 ATOM_RADIUS_MODES = ("cpk", "uniform")
 BOND_STYLES = ("cylinder", "curve")

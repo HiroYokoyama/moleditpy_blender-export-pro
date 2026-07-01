@@ -7,7 +7,7 @@ MoleditPy never imports bpy; the output is a plain Python text file.
 
 import logging
 
-from .style_config import StyleConfig, load_config, save_config
+from .style_config import STYLE_NAME, StyleConfig, load_config, save_config
 
 PLUGIN_NAME = "Blender Export Pro"
 PLUGIN_VERSION = "0.1.0"
@@ -21,7 +21,7 @@ PLUGIN_TAGS = ["blender", "export", "rendering", "visualization"]
 PLUGIN_DEPENDENCIES = []
 PLUGIN_SUPPORTED_MOLEDITPY_VERSION = ">=4.0.0, <5.0.0"
 
-STYLE_NAME = "Blender Export Pro (Preview)"
+STANDARD_STYLE = "ball_and_stick"
 
 _context = None
 _style: StyleConfig = StyleConfig()
@@ -52,6 +52,37 @@ def get_style() -> StyleConfig:
 def _draw_preview(mw, mol) -> None:
     from .preview_style import draw_preview_style
     draw_preview_style(mw, mol, _style)
+
+
+def _get_view_3d_manager(context):
+    mw = context.get_main_window()
+    return getattr(mw, "view_3d_manager", None)
+
+
+def activate_preview_style(context) -> bool:
+    """Switch the 3D view to the plugin's preview style. Returns success."""
+    v3d = _get_view_3d_manager(context)
+    if v3d is None or not hasattr(v3d, "set_3d_style"):
+        context.show_status_message(
+            "Blender Export Pro: 3D view is not available.", 4000)
+        return False
+    v3d.set_3d_style(STYLE_NAME)
+    return True
+
+
+def activate_standard_style(context) -> bool:
+    """Switch the 3D view back to the standard ball-and-stick style."""
+    v3d = _get_view_3d_manager(context)
+    if v3d is None or not hasattr(v3d, "set_3d_style"):
+        return False
+    v3d.set_3d_style(STANDARD_STYLE)
+    return True
+
+
+def is_preview_style_active(context) -> bool:
+    """True when the 3D view is currently using the preview style."""
+    v3d = _get_view_3d_manager(context)
+    return getattr(v3d, "current_3d_style", None) == STYLE_NAME
 
 
 def open_panel(context) -> None:

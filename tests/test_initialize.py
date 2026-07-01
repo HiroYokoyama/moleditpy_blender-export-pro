@@ -75,6 +75,37 @@ def test_quick_export_no_molecule_shows_status():
         assert ctx.show_status_message.called
 
 
+def test_activate_preview_style_switches_3d_view():
+    ctx = make_context()
+    v3d = ctx.get_main_window.return_value.view_3d_manager
+    assert plugin.activate_preview_style(ctx) is True
+    v3d.set_3d_style.assert_called_once_with(plugin.STYLE_NAME)
+
+
+def test_activate_standard_style_switches_back():
+    ctx = make_context()
+    v3d = ctx.get_main_window.return_value.view_3d_manager
+    assert plugin.activate_standard_style(ctx) is True
+    v3d.set_3d_style.assert_called_once_with(plugin.STANDARD_STYLE)
+
+
+def test_activate_preview_style_without_3d_view():
+    ctx = make_context()
+    mw = MagicMock(spec=[])  # no view_3d_manager attribute
+    ctx.get_main_window.return_value = mw
+    assert plugin.activate_preview_style(ctx) is False
+    assert ctx.show_status_message.called
+
+
+def test_is_preview_style_active():
+    ctx = make_context()
+    v3d = ctx.get_main_window.return_value.view_3d_manager
+    v3d.current_3d_style = plugin.STYLE_NAME
+    assert plugin.is_preview_style_active(ctx) is True
+    v3d.current_3d_style = "ball_and_stick"
+    assert plugin.is_preview_style_active(ctx) is False
+
+
 def test_preview_callback_handles_headless(monkeypatch):
     """The registered style callback must not raise without pyvista."""
     ctx = make_context()
