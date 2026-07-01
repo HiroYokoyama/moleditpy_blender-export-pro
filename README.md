@@ -40,9 +40,12 @@ the machine running MoleditPy.
   image file (browse from the panel; also lights the scene), or transparent
   film for compositing — plus optional Cycles/EEVEE engine, sample count and
   output resolution so the script is render-ready.
-- **Atom sizes**: global vdW scale, a one-click hydrogen size factor, and
-  per-selected-atom scaling (relative factor or absolute radius) with reset
-  buttons — overrides are saved with the project.
+- **Atom sizes & colors**: global vdW scale, a one-click hydrogen size
+  factor, and per-selected-atom scaling (relative factor or absolute radius)
+  and coloring with reset buttons — overrides are saved with the project.
+- **Atom labels**: optional 3D text per atom (symbol, symbol+index, or
+  index) with size/color/offset controls, camera-billboarded in Blender and
+  previewed in-app.
 - **Partial export** of the current atom selection.
 - **Consistent with the main app**: atom colors come from MoleditPy's own
   CPK color table (including your customizations) and radii from RDKit's

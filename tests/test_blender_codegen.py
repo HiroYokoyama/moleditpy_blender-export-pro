@@ -211,6 +211,37 @@ def test_ring_color_custom():
     assert records[0]["color"] == [1.0, 0.0, 0.0]
 
 
+# ------------------------------------------------------- labels & colors
+
+
+def test_labels_in_script_all_modes():
+    for mode in ("symbol", "symbol_index", "index"):
+        script = _generate(label_mode=mode)
+        compile(script, "<generated>", "exec")
+        assert f"LABEL_MODE = '{mode}'" in script
+        assert "create_labels" in script
+        assert "TRACK_TO" in script
+
+
+def test_labels_disabled_by_default():
+    assert "LABEL_MODE = 'none'" in _generate()
+
+
+def test_resolve_atom_color_override_beats_modes():
+    cfg = StyleConfig(color_mode="single", single_color="#FFFFFF",
+                      atom_color_overrides={"2": "#FF0000"})
+    assert bc.resolve_atom_color(cfg, "C", 2) == (1.0, 0.0, 0.0)
+    assert bc.resolve_atom_color(cfg, "C", 1) == (1.0, 1.0, 1.0)
+
+
+def test_atom_color_override_survives_selection_remap():
+    mol = make_ethanol_like()  # atoms C C O H
+    cfg = StyleConfig(atom_color_overrides={"2": "#00FF00"})
+    script = bc.generate_script_from_mol(mol, cfg, selected_indices=[1, 2])
+    assert '"color": [\n   0.0,\n   1.0,\n   0.0\n  ]' in (
+        script.replace("\r\n", "\n"))
+
+
 # ----------------------------------------------------- background & render
 
 

@@ -53,6 +53,16 @@ def test_atom_overrides_round_trip():
     assert restored.atom_overrides == {"4": {"scale": 2.0}}
 
 
+def test_label_and_color_override_round_trip():
+    cfg = StyleConfig(label_mode="symbol_index", label_size=0.5,
+                      atom_color_overrides={"1": "#123456"})
+    restored = StyleConfig()
+    restored.update_from_dict(cfg.to_dict())
+    assert restored.label_mode == "symbol_index"
+    assert restored.label_size == 0.5
+    assert restored.atom_color_overrides == {"1": "#123456"}
+
+
 def test_ring_overrides_round_trip():
     cfg = StyleConfig(ring_overrides={"0-1-2": {"visible": False, "opacity": 0.7}})
     restored = StyleConfig()
