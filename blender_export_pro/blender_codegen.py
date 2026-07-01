@@ -102,6 +102,17 @@ def resolve_atom_radius(cfg: StyleConfig, symbol: str, orig_index=None) -> float
     return max(radius, 0.01)
 
 
+def resolve_atom_color(cfg: StyleConfig, symbol: str, orig_index=None) -> tuple:
+    """Effective (r, g, b) for one atom: per-atom override, else color mode."""
+    if orig_index is not None and isinstance(cfg.atom_color_overrides, dict):
+        override = cfg.atom_color_overrides.get(str(orig_index))
+        if override:
+            return hex_to_rgb(override)
+    if cfg.color_mode == "single":
+        return hex_to_rgb(cfg.single_color)
+    return color_of(symbol)
+
+
 def extract_geometry(mol, selected_indices=None):
     """Extract (atoms, bonds) from an RDKit-like Mol via duck-typing.
 
@@ -189,10 +200,7 @@ def _atom_records(atoms, cfg: StyleConfig, atom_keys=None):
     for pos_idx, (symbol, pos) in enumerate(atoms):
         orig = atom_keys[pos_idx] if atom_keys else pos_idx
         radius = resolve_atom_radius(cfg, symbol, orig)
-        if cfg.color_mode == "single":
-            color = hex_to_rgb(cfg.single_color)
-        else:
-            color = color_of(symbol)
+        color = resolve_atom_color(cfg, symbol, orig)
         records.append(
             {
                 "symbol": symbol,
@@ -335,6 +343,11 @@ HDRI_STRENGTH = {float(cfg.hdri_strength)!r}
 RENDER_ENGINE = {cfg.render_engine!r}
 RENDER_SAMPLES = {int(cfg.render_samples)!r}
 RESOLUTION = ({int(cfg.resolution_x)!r}, {int(cfg.resolution_y)!r})
+LABEL_MODE = {cfg.label_mode!r}
+LABEL_SIZE = {float(cfg.label_size)!r}
+LABEL_COLOR = {json.dumps([round(c, 4) for c in hex_to_rgb(cfg.label_color)])}
+LABEL_OFFSET = {float(cfg.label_offset)!r}
+LABEL_FACE_CAMERA = {cfg.label_face_camera!r}
 
 random.seed(42)
 '''
@@ -715,6 +728,48 @@ def setup_render():
     scene.render.resolution_y = RESOLUTION[1]
 
 
+def create_labels(coll):
+    """3D text labels for atom symbols/indices, optionally camera-billboarded."""
+    if LABEL_MODE == "none":
+        return
+    mat = bpy.data.materials.new("Mat_bep_label")
+    mat.use_nodes = True
+    for node in mat.node_tree.nodes:
+        if node.type == "BSDF_PRINCIPLED":
+            _set_input(node, ["Base Color"],
+                       (LABEL_COLOR[0], LABEL_COLOR[1], LABEL_COLOR[2], 1.0))
+            _set_input(node, ["Roughness"], 1.0)
+            break
+    mat.diffuse_color = (LABEL_COLOR[0], LABEL_COLOR[1], LABEL_COLOR[2], 1.0)
+
+    cam = bpy.context.scene.camera
+    for idx, rec in enumerate(ATOMS):
+        if LABEL_MODE == "symbol":
+            text = rec["symbol"]
+        elif LABEL_MODE == "index":
+            text = str(idx)
+        else:
+            text = "%s%d" % (rec["symbol"], idx)
+
+        curve = bpy.data.curves.new("Label_%03d" % idx, type="FONT")
+        curve.body = text
+        curve.size = LABEL_SIZE
+        curve.align_x = "CENTER"
+        curve.align_y = "CENTER"
+        obj = bpy.data.objects.new("Label_%03d" % idx, curve)
+        obj.location = Vector(rec["pos"]) + Vector(
+            (0.0, 0.0, rec["radius"] * LABEL_OFFSET + LABEL_SIZE * 0.5))
+        bpy.context.scene.collection.objects.link(obj)
+        if obj.data and hasattr(obj.data, "materials"):
+            obj.data.materials.append(mat)
+        if LABEL_FACE_CAMERA and cam is not None:
+            constraint = obj.constraints.new("TRACK_TO")
+            constraint.target = cam
+            constraint.track_axis = "TRACK_Z"
+            constraint.up_axis = "UP_Y"
+        link_to(coll, obj)
+
+
 def setup_turntable(coll):
     if TURNTABLE_FRAMES <= 0:
         return
@@ -753,6 +808,7 @@ def main():
     setup_scene(coll)
     setup_background()
     setup_render()
+    create_labels(coll)
     setup_turntable(coll)
     print("Blender Export Pro: built %d atoms / %d bonds." % (len(ATOMS), len(BONDS)))
 
