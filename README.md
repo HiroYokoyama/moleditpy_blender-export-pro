@@ -24,6 +24,10 @@ the machine running MoleditPy.
   panels/plates — flat or extruded, translucent stained-glass or solid,
   custom-colored or matched to the ring atoms (aromatic-only or all small
   rings).
+- **Per-ring styling**: a table on the Rings tab lists every detected ring;
+  each row has its own show/hide, color, opacity, thickness and size
+  controls. Selecting a row highlights that ring in the 3D preview with a
+  bright outline. Per-ring overrides are saved with the project.
 - **Deformation**: noise displacement (`Displace` + clouds texture), bend /
   twist (`SimpleDeform`), subdivision smoothing, per-atom squash & stretch.
 - **18 material presets**: matte, plastic, metal, glass, toon, clay, chrome,
