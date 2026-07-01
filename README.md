@@ -20,6 +20,10 @@ the machine running MoleditPy.
   Plush, Wax Crayon, Stone Sculpture, Ceramic Figurine, Chalkboard Sketch,
   Neon Glow, Gold Jewelry, Chrome Showroom, Copper Steampunk, Wire Model,
   Holographic Display, Metaball Blob — plus save/load of custom JSON presets.
+- **Ring panels**: draw benzene and other rings as filled hexagonal
+  panels/plates — flat or extruded, translucent stained-glass or solid,
+  custom-colored or matched to the ring atoms (aromatic-only or all small
+  rings).
 - **Deformation**: noise displacement (`Displace` + clouds texture), bend /
   twist (`SimpleDeform`), subdivision smoothing, per-atom squash & stretch.
 - **18 material presets**: matte, plastic, metal, glass, toon, clay, chrome,
