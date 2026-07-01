@@ -37,6 +37,11 @@ the machine running MoleditPy.
 - **Scene setup**: 3-point studio lighting, world background, ground plane /
   shadow catcher, auto-framed camera, optional turntable animation.
 - **Partial export** of the current atom selection.
+- **Consistent with the main app**: atom colors come from MoleditPy's own
+  CPK color table (including your customizations) and radii from RDKit's
+  van der Waals table — a scale of 0.3 reproduces the main app's
+  ball-and-stick look, 1.0 is space-filling. Bundled fallback tables keep
+  everything working headlessly.
 - Per-project style persistence (`.pmeprj` save/load handlers) and a durable
   companion `settings.json` for user defaults.
 
