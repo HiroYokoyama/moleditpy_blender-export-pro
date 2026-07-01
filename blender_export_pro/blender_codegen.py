@@ -102,15 +102,35 @@ def resolve_atom_radius(cfg: StyleConfig, symbol: str, orig_index=None) -> float
     return max(radius, 0.01)
 
 
+def resolve_element_color(cfg: StyleConfig, symbol: str) -> tuple:
+    """Base color for an element: global per-element override, else app/CPK."""
+    if isinstance(cfg.element_colors, dict):
+        override = cfg.element_colors.get(symbol)
+        if override:
+            return hex_to_rgb(override)
+    return color_of(symbol)
+
+
 def resolve_atom_color(cfg: StyleConfig, symbol: str, orig_index=None) -> tuple:
-    """Effective (r, g, b) for one atom: per-atom override, else color mode."""
+    """Effective (r, g, b) for one atom.
+
+    Priority: per-atom override > single-color mode > per-element override /
+    app CPK color.
+    """
     if orig_index is not None and isinstance(cfg.atom_color_overrides, dict):
         override = cfg.atom_color_overrides.get(str(orig_index))
         if override:
             return hex_to_rgb(override)
     if cfg.color_mode == "single":
         return hex_to_rgb(cfg.single_color)
-    return color_of(symbol)
+    return resolve_element_color(cfg, symbol)
+
+
+def resolve_bond_color(cfg: StyleConfig, color_a, color_b) -> list:
+    """Bond color: fixed single color, or the average of its two atoms."""
+    if cfg.bond_color_mode == "single":
+        return [round(c, 4) for c in hex_to_rgb(cfg.bond_color)]
+    return [round((color_a[k] + color_b[k]) / 2.0, 4) for k in range(3)]
 
 
 def extract_geometry(mol, selected_indices=None):
@@ -320,6 +340,8 @@ BOND_STYLE = {cfg.bond_style!r}
 BOND_RADIUS = {float(cfg.bond_radius)!r}
 BOND_SEGMENTS = {int(cfg.bond_segments)!r}
 MULTI_BOND_OFFSET = {float(cfg.multi_bond_offset)!r}
+BOND_COLOR_MODE = {cfg.bond_color_mode!r}
+BOND_COLOR = {json.dumps([round(c, 4) for c in hex_to_rgb(cfg.bond_color)])}
 RING_STYLE = {cfg.ring_style!r}
 RING_SCALE = {float(cfg.ring_scale)!r}
 RING_THICKNESS = {float(cfg.ring_thickness)!r}
@@ -348,6 +370,9 @@ LABEL_SIZE = {float(cfg.label_size)!r}
 LABEL_COLOR = {json.dumps([round(c, 4) for c in hex_to_rgb(cfg.label_color)])}
 LABEL_OFFSET = {float(cfg.label_offset)!r}
 LABEL_FACE_CAMERA = {cfg.label_face_camera!r}
+RENDER_ON_RUN = {cfg.render_on_run!r}
+RENDER_OUTPUT_PATH = {cfg.render_output_path!r}
+IMAGE_FORMAT = {cfg.image_format!r}
 
 random.seed(42)
 '''
@@ -530,7 +555,10 @@ def create_bond(coll, index, rec):
     b = ATOMS[rec["b"]]
     start = Vector(a["pos"])
     end = Vector(b["pos"])
-    color = [(a["color"][k] + b["color"][k]) / 2.0 for k in range(3)]
+    if BOND_COLOR_MODE == "single":
+        color = list(BOND_COLOR)
+    else:
+        color = [(a["color"][k] + b["color"][k]) / 2.0 for k in range(3)]
     order = rec["order"]
 
     if order <= 1:
@@ -770,6 +798,23 @@ def create_labels(coll):
         link_to(coll, obj)
 
 
+def render_image():
+    """Render and save an image (or animation) when RENDER_ON_RUN is set."""
+    if not RENDER_ON_RUN or not RENDER_OUTPUT_PATH:
+        return
+    scene = bpy.context.scene
+    if scene.camera is None:
+        print("Blender Export Pro: no camera, skipping render.")
+        return
+    scene.render.image_settings.file_format = IMAGE_FORMAT
+    scene.render.filepath = RENDER_OUTPUT_PATH
+    if TURNTABLE_FRAMES > 0:
+        bpy.ops.render.render(animation=True)
+    else:
+        bpy.ops.render.render(write_still=True)
+    print("Blender Export Pro: rendered to %s" % RENDER_OUTPUT_PATH)
+
+
 def setup_turntable(coll):
     if TURNTABLE_FRAMES <= 0:
         return
@@ -810,6 +855,7 @@ def main():
     setup_render()
     create_labels(coll)
     setup_turntable(coll)
+    render_image()
     print("Blender Export Pro: built %d atoms / %d bonds." % (len(ATOMS), len(BONDS)))
 
 

@@ -22,6 +22,8 @@ MATERIAL_PRESETS = (
 SCENE_PRESETS = ("none", "studio", "dark")
 BACKGROUND_MODES = ("preset", "color", "hdri", "transparent")
 RENDER_ENGINES = ("keep", "cycles", "eevee")
+BOND_COLOR_MODES = ("atoms", "single")
+IMAGE_FORMATS = ("PNG", "JPEG", "TIFF", "OPEN_EXR", "WEBP")
 LABEL_MODES = ("none", "symbol", "symbol_index", "index")
 RING_STYLES = ("none", "panel")
 RING_COLOR_MODES = ("custom", "match_atoms")
@@ -59,6 +61,8 @@ class StyleConfig:
     bond_segments: int = 24
     show_multiple_bonds: bool = True
     multi_bond_offset: float = 0.18
+    bond_color_mode: str = "atoms"   # "atoms" = average of the two atoms
+    bond_color: str = "#808080"      # used when bond_color_mode == "single"
 
     # Rings (benzene etc. drawn as filled polygon panels/plates)
     ring_style: str = "none"          # "none" | "panel"
@@ -86,6 +90,9 @@ class StyleConfig:
     color_mode: str = "cpk"          # "cpk" | "single"
     single_color: str = "#CCCCCC"
     roughness_override: float = -1.0  # <0 means "use preset default"
+    # Global per-element color overrides: {"C": "#333333", ...}. Overrides the
+    # app/CPK color for that element everywhere (below per-atom overrides).
+    element_colors: dict = field(default_factory=dict)
 
     # Scene
     scene_preset: str = "studio"
@@ -102,6 +109,15 @@ class StyleConfig:
     render_samples: int = 128
     resolution_x: int = 1920
     resolution_y: int = 1080
+
+    # Render output (write an image when the script runs)
+    render_on_run: bool = False      # add a render + save at the end of script
+    render_output_path: str = ""     # image file path written by the script
+    image_format: str = "PNG"
+
+    # glTF / USD fallback export (no Blender needed to view)
+    # (handled directly by the plugin; no StyleConfig runtime state needed
+    #  beyond geometry + colors already present.)
 
     # Export
     blender_target: str = "4.x"
