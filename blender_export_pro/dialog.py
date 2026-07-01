@@ -41,6 +41,7 @@ from .style_config import (
     BACKGROUND_MODES,
     BLENDER_TARGETS,
     BOND_STYLES,
+    LABEL_MODES,
     MATERIAL_PRESETS,
     RENDER_ENGINES,
     RING_COLOR_MODES,
@@ -83,6 +84,7 @@ class BlenderExportDialog(QDialog):
         self._build_rings_tab()
         self._build_deformation_tab()
         self._build_material_tab()
+        self._build_labels_tab()
         self._build_scene_tab()
         self._build_export_tab()
         self._build_preset_files_tab()
@@ -203,11 +205,11 @@ class BlenderExportDialog(QDialog):
             "higher = hand-made / cartoon feel.")
         form.addRow("Squash/stretch jitter:", self.atom_jitter)
 
-        group = QGroupBox("Selected-Atom Sizes")
+        group = QGroupBox("Selected-Atom Styles")
         gform = QFormLayout(group)
         group.setToolTip(
-            "Select atoms in the 2D/3D editor first, then resize just those "
-            "atoms here. Overrides are saved with the project.")
+            "Select atoms in the 2D/3D editor first, then restyle just "
+            "those atoms here. Overrides are saved with the project.")
 
         row = QHBoxLayout()
         self.selection_scale = self._dspin(
@@ -232,13 +234,23 @@ class BlenderExportDialog(QDialog):
         gform.addRow("Radius (Å):", row)
 
         row = QHBoxLayout()
+        self.selection_color = QLineEdit("#FF8800")
+        self.selection_color.setToolTip(
+            "#RRGGBB color applied to each selected atom.")
+        row.addWidget(self.selection_color)
+        color_btn = QPushButton("Color Selected Atoms")
+        color_btn.clicked.connect(self._color_selected_atoms)
+        row.addWidget(color_btn)
+        gform.addRow("Color:", row)
+
+        row = QHBoxLayout()
         reset_sel_btn = QPushButton("Reset Selected")
         reset_sel_btn.setToolTip(
-            "Remove size overrides from the selected atoms.")
+            "Remove size and color overrides from the selected atoms.")
         reset_sel_btn.clicked.connect(self._reset_selected_atom_sizes)
         row.addWidget(reset_sel_btn)
         reset_all_btn = QPushButton("Reset All")
-        reset_all_btn.setToolTip("Remove all per-atom size overrides.")
+        reset_all_btn.setToolTip("Remove all per-atom size and color overrides.")
         reset_all_btn.clicked.connect(self._reset_all_atom_sizes)
         row.addWidget(reset_all_btn)
         gform.addRow(row)
@@ -441,6 +453,40 @@ class BlenderExportDialog(QDialog):
 
         self._tabs.addTab(tab, "Material")
 
+    def _build_labels_tab(self):
+        tab = QWidget()
+        form = QFormLayout(tab)
+
+        self.label_mode = QComboBox()
+        self.label_mode.addItems(LABEL_MODES)
+        self.label_mode.setToolTip(
+            "Add 3D text next to each atom: element symbol, symbol+index "
+            "(C0, C1, …) or index only. 'none' = no labels.")
+        form.addRow("Label text:", self.label_mode)
+
+        self.label_size = self._dspin(
+            0.05, 3.0, 0.05, "Text height in Blender units (Angstrom scale).")
+        form.addRow("Text size:", self.label_size)
+
+        self.label_color = QLineEdit()
+        self.label_color.setPlaceholderText("#RRGGBB")
+        self.label_color.setToolTip("Label text color.")
+        form.addRow("Text color:", self.label_color)
+
+        self.label_offset = self._dspin(
+            0.5, 5.0, 0.1,
+            "How far the label sits from the atom center, as a multiple of "
+            "the atom radius.")
+        form.addRow("Offset:", self.label_offset)
+
+        self.label_face_camera = QCheckBox("Always face the camera")
+        self.label_face_camera.setToolTip(
+            "Adds a tracking constraint so labels stay readable from the "
+            "camera (needs the auto camera or an existing one).")
+        form.addRow(self.label_face_camera)
+
+        self._tabs.addTab(tab, "Labels")
+
     def _build_scene_tab(self):
         tab = QWidget()
         form = QFormLayout(tab)
@@ -624,6 +670,11 @@ class BlenderExportDialog(QDialog):
         ("color_mode", "combo"),
         ("single_color", "text"),
         ("roughness_override", "float"),
+        ("label_mode", "combo"),
+        ("label_size", "float"),
+        ("label_color", "text"),
+        ("label_offset", "float"),
+        ("label_face_camera", "bool"),
         ("scene_preset", "combo"),
         ("add_ground_plane", "bool"),
         ("add_camera", "bool"),
@@ -732,10 +783,14 @@ class BlenderExportDialog(QDialog):
         return selected
 
     def _update_atom_override_label(self):
-        count = len(self._cfg.atom_overrides or {})
-        self.atom_override_label.setText(
-            f"{count} atom(s) have a custom size." if count
-            else "No per-atom size overrides.")
+        sizes = len(self._cfg.atom_overrides or {})
+        colors = len(self._cfg.atom_color_overrides or {})
+        if not sizes and not colors:
+            self.atom_override_label.setText("No per-atom overrides.")
+        else:
+            self.atom_override_label.setText(
+                f"Custom sizes: {sizes} atom(s) · custom colors: "
+                f"{colors} atom(s).")
 
     def _apply_atom_override(self, override: dict):
         selected = self._selected_atoms_or_warn()
@@ -758,21 +813,41 @@ class BlenderExportDialog(QDialog):
         self._pull_config()
         self._apply_atom_override({"radius": float(self.selection_radius.value())})
 
+    def _color_selected_atoms(self):
+        self._pull_config()
+        selected = self._selected_atoms_or_warn()
+        if selected is None:
+            return
+        color = self.selection_color.text().strip()
+        if not color:
+            return
+        if not isinstance(self._cfg.atom_color_overrides, dict):
+            self._cfg.atom_color_overrides = {}
+        for idx in selected:
+            self._cfg.atom_color_overrides[str(int(idx))] = color
+        self._update_atom_override_label()
+        self._refresh_preview_if_active()
+        self._context.show_status_message(
+            f"Color applied to {len(selected)} atom(s).", 3000)
+
     def _reset_selected_atom_sizes(self):
         selected = self._selected_atoms_or_warn()
         if selected is None:
             return
-        if isinstance(self._cfg.atom_overrides, dict):
-            for idx in selected:
-                self._cfg.atom_overrides.pop(str(int(idx)), None)
+        for overrides in (self._cfg.atom_overrides,
+                          self._cfg.atom_color_overrides):
+            if isinstance(overrides, dict):
+                for idx in selected:
+                    overrides.pop(str(int(idx)), None)
         self._update_atom_override_label()
         self._refresh_preview_if_active()
 
     def _reset_all_atom_sizes(self):
         self._cfg.atom_overrides = {}
+        self._cfg.atom_color_overrides = {}
         self._update_atom_override_label()
         self._refresh_preview_if_active()
-        self._context.show_status_message("All atom sizes reset.", 3000)
+        self._context.show_status_message("All per-atom overrides reset.", 3000)
 
     # ---------------------------------------------------------- ring table
 
