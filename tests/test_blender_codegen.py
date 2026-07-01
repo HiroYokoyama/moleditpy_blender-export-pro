@@ -211,6 +211,66 @@ def test_ring_color_custom():
     assert records[0]["color"] == [1.0, 0.0, 0.0]
 
 
+# -------------------------------------------------- atom radius resolution
+
+
+def test_resolve_atom_radius_cpk_and_uniform():
+    from blender_export_pro.element_data import radius_of
+
+    cfg = StyleConfig(atom_radius_scale=0.5)
+    assert bc.resolve_atom_radius(cfg, "C") == radius_of("C") * 0.5
+    cfg = StyleConfig(atom_radius_mode="uniform", uniform_radius=0.4)
+    assert bc.resolve_atom_radius(cfg, "C") == 0.4
+
+
+def test_resolve_atom_radius_hydrogen_scale():
+    from blender_export_pro.element_data import radius_of
+
+    cfg = StyleConfig(atom_radius_scale=0.5, hydrogen_scale=0.5)
+    assert bc.resolve_atom_radius(cfg, "H") == radius_of("H") * 0.5 * 0.5
+    assert bc.resolve_atom_radius(cfg, "C") == radius_of("C") * 0.5
+
+
+def test_resolve_atom_radius_override_scale_and_absolute():
+    from blender_export_pro.element_data import radius_of
+
+    cfg = StyleConfig(
+        atom_radius_scale=0.5,
+        atom_overrides={"3": {"scale": 2.0}, "7": {"radius": 1.23}},
+    )
+    base = radius_of("C") * 0.5
+    assert bc.resolve_atom_radius(cfg, "C", 3) == base * 2.0
+    assert bc.resolve_atom_radius(cfg, "C", 7) == 1.23
+    assert bc.resolve_atom_radius(cfg, "C", 5) == base
+
+
+def test_resolve_atom_radius_bad_override_ignored():
+    cfg = StyleConfig(atom_overrides={"0": {"radius": "junk"}, "1": "junk"})
+    base = bc.resolve_atom_radius(cfg, "C")
+    assert bc.resolve_atom_radius(cfg, "C", 0) == base
+    assert bc.resolve_atom_radius(cfg, "C", 1) == base
+
+
+def test_resolve_atom_radius_clamped_to_minimum():
+    cfg = StyleConfig(atom_overrides={"0": {"radius": 0.0}})
+    assert bc.resolve_atom_radius(cfg, "C", 0) == 0.01
+
+
+def test_atom_override_survives_selection_remap():
+    """Per-atom overrides key on original indices even under selection."""
+    mol = make_ethanol_like()  # atoms C C O H
+    cfg = StyleConfig(atom_overrides={"2": {"radius": 2.5}})
+    # select only atoms 1 (C) and 2 (O); O becomes export index 1
+    script = bc.generate_script_from_mol(mol, cfg, selected_indices=[1, 2])
+    assert '"radius": 2.5' in script
+
+
+def test_atom_records_use_export_position_without_keys():
+    atoms = [("C", (0.0, 0.0, 0.0))]
+    cfg = StyleConfig(atom_overrides={"0": {"radius": 2.0}})
+    assert bc._atom_records(atoms, cfg)[0]["radius"] == 2.0
+
+
 # ------------------------------------------------------ per-ring overrides
 
 

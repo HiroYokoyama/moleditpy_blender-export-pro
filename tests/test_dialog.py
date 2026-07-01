@@ -58,6 +58,9 @@ def test_dialog_has_quick_start_actions():
     # per-ring table handlers
     assert {"_refresh_ring_table", "_on_ring_cell_changed",
             "_on_ring_row_selected", "_reset_selected_ring"} <= methods
+    # selected-atom sizing handlers
+    assert {"_scale_selected_atoms", "_set_selected_atom_radius",
+            "_reset_selected_atom_sizes", "_reset_all_atom_sizes"} <= methods
 
 
 def test_highlighted_ring_setter():

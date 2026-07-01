@@ -44,6 +44,15 @@ def test_update_non_dict_is_noop():
     assert cfg == StyleConfig()
 
 
+def test_atom_overrides_round_trip():
+    cfg = StyleConfig(hydrogen_scale=0.5,
+                      atom_overrides={"4": {"scale": 2.0}})
+    restored = StyleConfig()
+    restored.update_from_dict(cfg.to_dict())
+    assert restored.hydrogen_scale == 0.5
+    assert restored.atom_overrides == {"4": {"scale": 2.0}}
+
+
 def test_ring_overrides_round_trip():
     cfg = StyleConfig(ring_overrides={"0-1-2": {"visible": False, "opacity": 0.7}})
     restored = StyleConfig()
