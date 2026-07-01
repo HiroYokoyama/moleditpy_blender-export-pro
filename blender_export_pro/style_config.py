@@ -4,7 +4,7 @@ Pure Python (stdlib only) so it can be unit-tested headlessly and serialized
 into project files / companion settings.json without side effects.
 """
 
-from dataclasses import dataclass, asdict, fields
+from dataclasses import dataclass, asdict, field, fields
 import json
 import logging
 import os
@@ -52,6 +52,10 @@ class StyleConfig:
     ring_color_mode: str = "custom"   # "custom" | "match_atoms"
     ring_color: str = "#E8D44D"
     ring_opacity: float = 0.55
+    # Per-ring style overrides, keyed by ring_key() (sorted atom indices,
+    # e.g. "0-1-2-3-4-5"). Values: {"visible", "scale", "thickness",
+    # "color", "opacity"} — missing keys fall back to the globals above.
+    ring_overrides: dict = field(default_factory=dict)
 
     # Deformation
     deformation_noise: float = 0.0   # Displace modifier strength
@@ -91,7 +95,9 @@ class StyleConfig:
                 continue
             current = getattr(self, key)
             try:
-                if isinstance(current, bool):
+                if isinstance(current, dict):
+                    setattr(self, key, dict(value) if isinstance(value, dict) else {})
+                elif isinstance(current, bool):
                     setattr(self, key, bool(value))
                 elif isinstance(current, int):
                     setattr(self, key, int(value))
