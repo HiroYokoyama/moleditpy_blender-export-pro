@@ -1,13 +1,14 @@
 """Blender Export Pro configuration dialog (PyQt6).
 
-Tabbed panel bound to a shared StyleConfig instance. Uses the hide-on-close
-singleton pattern so state survives while the app runs.
+Layout philosophy: a "Quick Start" section on top covers the whole basic
+workflow in three clicks (pick preset -> preview in 3D -> export), while every
+detailed control stays available in the collapsible Advanced Settings tabs.
+Uses the hide-on-close singleton pattern so state survives while the app runs.
 """
 
 import logging
 import os
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -16,6 +17,7 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -41,7 +43,7 @@ from .style_config import (
 
 
 class BlenderExportDialog(QDialog):
-    """Config panel: presets, atoms, bonds, deformation, material, scene, export."""
+    """Config panel: quick-start actions plus advanced tabbed settings."""
 
     def __init__(self, parent, context, cfg: StyleConfig):
         super().__init__(parent)
@@ -50,52 +52,97 @@ class BlenderExportDialog(QDialog):
         self._loading = False
 
         self.setWindowTitle("Blender Export Pro")
-        self.setMinimumWidth(430)
+        self.setMinimumWidth(460)
 
         layout = QVBoxLayout(self)
+        layout.addWidget(self._build_quick_start())
+
+        self.advanced_toggle = QPushButton("Advanced Settings  ▸")
+        self.advanced_toggle.setCheckable(True)
+        self.advanced_toggle.setToolTip(
+            "Fine-tune atoms, bonds, deformation, materials, scene and export "
+            "options. Presets are a starting point — every value can be edited "
+            "here.")
+        self.advanced_toggle.toggled.connect(self._toggle_advanced)
+        layout.addWidget(self.advanced_toggle)
+
         self._tabs = QTabWidget(self)
+        self._tabs.setVisible(False)
         layout.addWidget(self._tabs)
 
-        self._build_presets_tab()
         self._build_atoms_tab()
         self._build_bonds_tab()
         self._build_deformation_tab()
         self._build_material_tab()
         self._build_scene_tab()
         self._build_export_tab()
+        self._build_preset_files_tab()
 
         self._refresh_widgets()
+        self._connect_live_updates()
 
-    # ------------------------------------------------------------------ tabs
+    # ------------------------------------------------------------ quick start
 
-    def _build_presets_tab(self):
-        tab = QWidget()
-        vbox = QVBoxLayout(tab)
-        vbox.addWidget(QLabel("Apply a bundled style preset:"))
+    def _build_quick_start(self) -> QGroupBox:
+        box = QGroupBox("Quick Start")
+        vbox = QVBoxLayout(box)
 
-        self.preset_combo = QComboBox()
-        self._presets = sc.list_presets()
-        self.preset_combo.addItems(list(self._presets))
-        vbox.addWidget(self.preset_combo)
-
-        apply_btn = QPushButton("Apply Preset")
-        apply_btn.clicked.connect(self._apply_preset)
-        vbox.addWidget(apply_btn)
+        steps = QLabel(
+            "1. Pick a style  →  2. Preview it in the 3D view  →  "
+            "3. Export and run the script in Blender.")
+        steps.setWordWrap(True)
+        vbox.addWidget(steps)
 
         row = QHBoxLayout()
-        load_btn = QPushButton("Load Preset File…")
-        load_btn.clicked.connect(self._load_preset_file)
-        save_btn = QPushButton("Save Preset File…")
-        save_btn.clicked.connect(self._save_preset_file)
-        row.addWidget(load_btn)
-        row.addWidget(save_btn)
+        row.addWidget(QLabel("Style:"))
+        self.preset_combo = QComboBox()
+        self.preset_combo.setToolTip(
+            "Bundled style presets. Applying one overwrites the current "
+            "settings; tweak them afterwards under Advanced Settings.")
+        self._presets = sc.list_presets()
+        self.preset_combo.addItems(list(self._presets))
+        row.addWidget(self.preset_combo, 1)
+
+        apply_btn = QPushButton("Apply")
+        apply_btn.setToolTip("Load the selected preset into the settings.")
+        apply_btn.clicked.connect(self._apply_preset)
+        row.addWidget(apply_btn)
         vbox.addLayout(row)
 
-        reset_btn = QPushButton("Reset to Defaults")
-        reset_btn.clicked.connect(self._reset_defaults)
-        vbox.addWidget(reset_btn)
-        vbox.addStretch(1)
-        self._tabs.addTab(tab, "Presets")
+        row = QHBoxLayout()
+        self.preview_btn = QPushButton("Show in 3D View")
+        self.preview_btn.setToolTip(
+            "Switch the 3D view to the styled preview. While it is active, "
+            "any setting change updates the view immediately.")
+        self.preview_btn.clicked.connect(self._activate_preview)
+        row.addWidget(self.preview_btn)
+
+        self.standard_btn = QPushButton("Standard View")
+        self.standard_btn.setToolTip(
+            "Switch the 3D view back to the normal ball-and-stick style.")
+        self.standard_btn.clicked.connect(self._activate_standard)
+        row.addWidget(self.standard_btn)
+        vbox.addLayout(row)
+
+        export_btn = QPushButton("Export Blender Script…")
+        export_btn.setToolTip(
+            "Generate a self-contained .py file. In Blender: Scripting "
+            "workspace → open the file → Run Script. Blender is NOT required "
+            "on this machine.")
+        export_btn.setDefault(True)
+        export_btn.clicked.connect(self._export_script)
+        vbox.addWidget(export_btn)
+
+        return box
+
+    def _toggle_advanced(self, checked: bool) -> None:
+        self._tabs.setVisible(checked)
+        self.advanced_toggle.setText(
+            "Advanced Settings  ▾" if checked else "Advanced Settings  ▸")
+        if not checked:
+            self.adjustSize()
+
+    # ------------------------------------------------------------------ tabs
 
     def _build_atoms_tab(self):
         tab = QWidget()
@@ -103,23 +150,37 @@ class BlenderExportDialog(QDialog):
 
         self.atom_shape = QComboBox()
         self.atom_shape.addItems(ATOM_SHAPES)
+        self.atom_shape.setToolTip(
+            "uv_sphere: smooth classic spheres · ico_sphere: low-poly look · "
+            "metaball: blobs that merge into an organic surface (Blender only).")
         form.addRow("Sphere type:", self.atom_shape)
 
         self.atom_subdivisions = QSpinBox()
         self.atom_subdivisions.setRange(1, 6)
+        self.atom_subdivisions.setToolTip(
+            "Mesh detail. Low = faceted/low-poly, high = smooth (heavier).")
         form.addRow("Subdivisions:", self.atom_subdivisions)
 
         self.atom_radius_mode = QComboBox()
         self.atom_radius_mode.addItems(ATOM_RADIUS_MODES)
+        self.atom_radius_mode.setToolTip(
+            "cpk: element-dependent radii · uniform: same radius for all atoms.")
         form.addRow("Radius mode:", self.atom_radius_mode)
 
-        self.atom_radius_scale = self._dspin(0.05, 3.0, 0.05)
+        self.atom_radius_scale = self._dspin(
+            0.05, 3.0, 0.05,
+            "Multiplier on the element (CPK) radius. ~0.45 = ball-and-stick, "
+            "~1.6 = space-filling.")
         form.addRow("CPK radius scale:", self.atom_radius_scale)
 
-        self.uniform_radius = self._dspin(0.05, 3.0, 0.05)
+        self.uniform_radius = self._dspin(
+            0.05, 3.0, 0.05, "Radius in Angstrom used when radius mode is 'uniform'.")
         form.addRow("Uniform radius (Å):", self.uniform_radius)
 
-        self.atom_jitter = self._dspin(0.0, 1.0, 0.05)
+        self.atom_jitter = self._dspin(
+            0.0, 1.0, 0.05,
+            "Random squash & stretch per atom. 0 = perfect spheres, "
+            "higher = hand-made / cartoon feel.")
         form.addRow("Squash/stretch jitter:", self.atom_jitter)
 
         self._tabs.addTab(tab, "Atoms")
@@ -130,19 +191,29 @@ class BlenderExportDialog(QDialog):
 
         self.bond_style = QComboBox()
         self.bond_style.addItems(BOND_STYLES)
+        self.bond_style.setToolTip(
+            "cylinder: rigid mesh cylinders · curve: Blender curves with a "
+            "bevel — stays editable/bendable inside Blender.")
         form.addRow("Representation:", self.bond_style)
 
-        self.bond_radius = self._dspin(0.01, 1.0, 0.01)
+        self.bond_radius = self._dspin(
+            0.01, 1.0, 0.01, "Bond thickness in Angstrom.")
         form.addRow("Radius (Å):", self.bond_radius)
 
         self.bond_segments = QSpinBox()
         self.bond_segments.setRange(3, 64)
+        self.bond_segments.setToolTip(
+            "Cylinder cross-section vertices. 6 = low-poly, 24+ = smooth.")
         form.addRow("Segments:", self.bond_segments)
 
         self.show_multiple_bonds = QCheckBox("Render double/triple bonds")
+        self.show_multiple_bonds.setToolTip(
+            "Draw 2 or 3 parallel cylinders for double/triple bonds. "
+            "Off = one cylinder per bond (cleaner for stylized looks).")
         form.addRow(self.show_multiple_bonds)
 
-        self.multi_bond_offset = self._dspin(0.02, 1.0, 0.02)
+        self.multi_bond_offset = self._dspin(
+            0.02, 1.0, 0.02, "Spacing between the parallel cylinders.")
         form.addRow("Multi-bond offset (Å):", self.multi_bond_offset)
 
         self._tabs.addTab(tab, "Bonds")
@@ -151,23 +222,35 @@ class BlenderExportDialog(QDialog):
         tab = QWidget()
         form = QFormLayout(tab)
 
-        self.deformation_noise = self._dspin(0.0, 2.0, 0.05)
+        self.deformation_noise = self._dspin(
+            0.0, 2.0, 0.05,
+            "Organic surface wobble (Blender Displace modifier). "
+            "0 = clean, 0.1-0.3 = clay/hand-made.")
         form.addRow("Noise displacement:", self.deformation_noise)
 
-        self.deformation_noise_scale = self._dspin(0.1, 10.0, 0.1)
+        self.deformation_noise_scale = self._dspin(
+            0.1, 10.0, 0.1,
+            "Noise feature size. Small = fine grain, large = broad waves.")
         form.addRow("Noise scale:", self.deformation_noise_scale)
 
-        self.deformation_bend = self._dspin(-180.0, 180.0, 5.0)
+        self.deformation_bend = self._dspin(
+            -180.0, 180.0, 5.0, "Bend every object (SimpleDeform modifier).")
         form.addRow("Bend (degrees):", self.deformation_bend)
 
-        self.deformation_twist = self._dspin(-180.0, 180.0, 5.0)
+        self.deformation_twist = self._dspin(
+            -180.0, 180.0, 5.0, "Twist every object (SimpleDeform modifier).")
         form.addRow("Twist (degrees):", self.deformation_twist)
 
         self.subdivision_level = QSpinBox()
         self.subdivision_level.setRange(0, 4)
+        self.subdivision_level.setToolTip(
+            "Subdivision Surface smoothing applied in Blender. "
+            "2 gives soft, rounded 'inflated' shapes.")
         form.addRow("Subdivision smoothing:", self.subdivision_level)
 
         self.shade_smooth = QCheckBox("Shade smooth")
+        self.shade_smooth.setToolTip(
+            "Smooth surface normals. Turn OFF for faceted low-poly styles.")
         form.addRow(self.shade_smooth)
 
         self._tabs.addTab(tab, "Deformation")
@@ -178,18 +261,28 @@ class BlenderExportDialog(QDialog):
 
         self.material_preset = QComboBox()
         self.material_preset.addItems(MATERIAL_PRESETS)
+        self.material_preset.setToolTip(
+            "Surface look (Principled BSDF in Blender): glass and ice are "
+            "transparent, neon glows, gold/copper/chrome are metallic, "
+            "gummy is translucent.")
         form.addRow("Material preset:", self.material_preset)
 
         self.color_mode = QComboBox()
         self.color_mode.addItems(("cpk", "single"))
+        self.color_mode.setToolTip(
+            "cpk: element colors (C grey, O red, …) · single: one color "
+            "for the whole molecule.")
         form.addRow("Color mode:", self.color_mode)
 
         self.single_color = QLineEdit()
         self.single_color.setPlaceholderText("#RRGGBB")
+        self.single_color.setToolTip("Hex color used when color mode is 'single'.")
         form.addRow("Single color:", self.single_color)
 
-        self.roughness_override = self._dspin(-1.0, 1.0, 0.05)
-        self.roughness_override.setToolTip("-1 = use preset default")
+        self.roughness_override = self._dspin(
+            -1.0, 1.0, 0.05,
+            "-1 = use the material preset's default. 0 = mirror-glossy, "
+            "1 = fully matte.")
         form.addRow("Roughness override:", self.roughness_override)
 
         self._tabs.addTab(tab, "Material")
@@ -200,63 +293,93 @@ class BlenderExportDialog(QDialog):
 
         self.scene_preset = QComboBox()
         self.scene_preset.addItems(SCENE_PRESETS)
+        self.scene_preset.setToolTip(
+            "studio: bright 3-point lighting · dark: moody backdrop (best "
+            "for neon/glass/gold) · none: no lights or world, bring your own.")
         form.addRow("Lighting preset:", self.scene_preset)
 
         self.add_ground_plane = QCheckBox("Ground plane / shadow catcher")
+        self.add_ground_plane.setToolTip(
+            "Adds a floor below the molecule that catches shadows.")
         form.addRow(self.add_ground_plane)
 
         self.add_camera = QCheckBox("Auto-framed camera")
+        self.add_camera.setToolTip(
+            "Adds a camera aimed at the molecule, framed to its size — "
+            "the scene is render-ready immediately.")
         form.addRow(self.add_camera)
 
         self.turntable_frames = QSpinBox()
         self.turntable_frames.setRange(0, 10000)
-        self.turntable_frames.setToolTip("0 disables the turntable animation")
+        self.turntable_frames.setToolTip(
+            "Adds a 360° rotation animation over this many frames. "
+            "0 = no animation. 240 frames ≈ 10 s at 24 fps.")
         form.addRow("Turntable frames:", self.turntable_frames)
 
         self._tabs.addTab(tab, "Scene")
 
     def _build_export_tab(self):
         tab = QWidget()
-        vbox = QVBoxLayout(tab)
-        form = QFormLayout()
+        form = QFormLayout(tab)
 
         self.blender_target = QComboBox()
         self.blender_target.addItems(BLENDER_TARGETS)
+        self.blender_target.setToolTip(
+            "Blender version you will run the script in. The script is "
+            "written defensively, so this mostly affects the header comment.")
         form.addRow("Target Blender:", self.blender_target)
 
         self.clear_scene = QCheckBox("Clear default scene in script")
+        self.clear_scene.setToolTip(
+            "The script deletes Blender's default cube/light/camera first. "
+            "Disable to add the molecule to an existing scene.")
         form.addRow(self.clear_scene)
 
         self.collection_name = QLineEdit()
+        self.collection_name.setToolTip(
+            "Blender collection that will contain all molecule objects.")
         form.addRow("Collection name:", self.collection_name)
 
         self.selection_only = QCheckBox("Export selected atoms only")
+        self.selection_only.setToolTip(
+            "Export only the atoms currently selected in the editor "
+            "(bonds to unselected atoms are dropped).")
         form.addRow(self.selection_only)
-        vbox.addLayout(form)
 
-        preview_btn = QPushButton("Update 3D Preview")
-        preview_btn.setToolTip(
-            'Redraws the 3D view. Select the "Blender Export Pro (Preview)" '
-            "style in the 3D panel to see the styled rendering."
-        )
-        preview_btn.clicked.connect(self._refresh_preview)
-        vbox.addWidget(preview_btn)
+        self._tabs.addTab(tab, "Export Options")
 
-        export_btn = QPushButton("Generate Blender Script…")
-        export_btn.clicked.connect(self._export_script)
-        vbox.addWidget(export_btn)
+    def _build_preset_files_tab(self):
+        tab = QWidget()
+        vbox = QVBoxLayout(tab)
+        vbox.addWidget(QLabel(
+            "Save the current settings as a shareable JSON preset,\n"
+            "or load one from disk."))
+
+        row = QHBoxLayout()
+        load_btn = QPushButton("Load Preset File…")
+        load_btn.clicked.connect(self._load_preset_file)
+        save_btn = QPushButton("Save Preset File…")
+        save_btn.clicked.connect(self._save_preset_file)
+        row.addWidget(load_btn)
+        row.addWidget(save_btn)
+        vbox.addLayout(row)
+
+        reset_btn = QPushButton("Reset All Settings to Defaults")
+        reset_btn.clicked.connect(self._reset_defaults)
+        vbox.addWidget(reset_btn)
         vbox.addStretch(1)
-
-        self._tabs.addTab(tab, "Export")
+        self._tabs.addTab(tab, "Preset Files")
 
     # ------------------------------------------------------------- helpers
 
     @staticmethod
-    def _dspin(minimum, maximum, step):
+    def _dspin(minimum, maximum, step, tooltip=""):
         box = QDoubleSpinBox()
         box.setRange(minimum, maximum)
         box.setSingleStep(step)
         box.setDecimals(3)
+        if tooltip:
+            box.setToolTip(tooltip)
         return box
 
     _WIDGET_FIELDS = (
@@ -326,13 +449,57 @@ class BlenderExportDialog(QDialog):
             else:
                 setattr(self._cfg, name, float(widget.value()))
 
+    def _connect_live_updates(self):
+        """While the preview style is active, changes redraw the 3D view."""
+        for name, kind in self._WIDGET_FIELDS:
+            widget = getattr(self, name)
+            if kind == "combo":
+                widget.currentTextChanged.connect(self._on_setting_changed)
+            elif kind == "bool":
+                widget.toggled.connect(self._on_setting_changed)
+            elif kind == "text":
+                widget.editingFinished.connect(self._on_setting_changed)
+            else:
+                widget.valueChanged.connect(self._on_setting_changed)
+
+    def _on_setting_changed(self, *_args):
+        if self._loading:
+            return
+        self._pull_config()
+        self._refresh_preview_if_active()
+
+    def _refresh_preview_if_active(self):
+        from . import is_preview_style_active
+        try:
+            if is_preview_style_active(self._context):
+                self._context.refresh_3d_view()
+        except Exception:
+            logging.exception("BlenderExportPro: live preview refresh failed")
+
     # ------------------------------------------------------------- actions
+
+    def _activate_preview(self):
+        from . import activate_preview_style
+        self._pull_config()
+        if activate_preview_style(self._context):
+            try:
+                self._context.refresh_3d_view()
+            except Exception:
+                logging.exception("BlenderExportPro: preview refresh failed")
+            self._context.show_status_message(
+                "Blender Export Pro preview active — settings update the "
+                "3D view live.", 4000)
+
+    def _activate_standard(self):
+        from . import activate_standard_style
+        activate_standard_style(self._context)
 
     def _apply_preset(self):
         name = self.preset_combo.currentText()
         path = self._presets.get(name)
         if path and sc.load_preset(self._cfg, path):
             self._refresh_widgets()
+            self._refresh_preview_if_active()
             self._context.show_status_message(f"Preset applied: {name}", 3000)
 
     def _load_preset_file(self):
@@ -340,6 +507,7 @@ class BlenderExportDialog(QDialog):
             self, "Load Preset", "", "JSON preset (*.json)")
         if path and sc.load_preset(self._cfg, path):
             self._refresh_widgets()
+            self._refresh_preview_if_active()
             self._context.show_status_message(
                 f"Preset loaded: {os.path.basename(path)}", 3000)
 
@@ -354,14 +522,8 @@ class BlenderExportDialog(QDialog):
     def _reset_defaults(self):
         self._cfg.reset_defaults()
         self._refresh_widgets()
+        self._refresh_preview_if_active()
         self._context.show_status_message("Style reset to defaults.", 3000)
-
-    def _refresh_preview(self):
-        self._pull_config()
-        try:
-            self._context.refresh_3d_view()
-        except Exception:
-            logging.exception("BlenderExportPro: preview refresh failed")
 
     def _export_script(self):
         self._pull_config()
