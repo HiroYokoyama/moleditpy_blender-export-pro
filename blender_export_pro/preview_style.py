@@ -11,11 +11,11 @@ from .blender_codegen import (
     extract_geometry,
     extract_rings,
     hex_to_rgb,
+    resolve_atom_color,
     resolve_atom_radius,
     resolve_ring_style,
     ring_key,
 )
-from .element_data import color_of
 from .style_config import StyleConfig
 
 try:
@@ -42,10 +42,8 @@ def get_highlighted_ring():
     return _highlighted_ring_key
 
 
-def _atom_color(symbol: str, cfg: StyleConfig) -> tuple:
-    if cfg.color_mode == "single":
-        return hex_to_rgb(cfg.single_color)
-    return color_of(symbol)
+def _atom_color(symbol: str, cfg: StyleConfig, orig_index=None) -> tuple:
+    return resolve_atom_color(cfg, symbol, orig_index)
 
 
 # NOTE: must never contain keys that draw_preview_style passes to add_mesh
@@ -137,7 +135,7 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
         _displace(sphere, cfg, rng)
         plotter.add_mesh(
             sphere,
-            color=_atom_color(symbol, cfg),
+            color=_atom_color(symbol, cfg, idx),
             name=f"bep_atom_{idx}",
             smooth_shading=cfg.shade_smooth,
             **mat,
@@ -153,7 +151,8 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
         direction = direction / length
         color = tuple(
             (a + b) / 2.0
-            for a, b in zip(_atom_color(atoms[i][0], cfg), _atom_color(atoms[j][0], cfg))
+            for a, b in zip(_atom_color(atoms[i][0], cfg, i),
+                            _atom_color(atoms[j][0], cfg, j))
         )
 
         if order > 1 and cfg.show_multiple_bonds:
@@ -193,6 +192,9 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
     if cfg.ring_style == "panel":
         _draw_ring_panels(plotter, mol, atoms, positions, cfg)
 
+    if cfg.label_mode != "none":
+        _draw_labels(plotter, atoms, positions, cfg)
+
     try:
         plotter.render()
     except Exception:
@@ -225,7 +227,7 @@ def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
         if style["color"]:
             color = hex_to_rgb(style["color"])
         elif cfg.ring_color_mode == "match_atoms":
-            member_colors = [_atom_color(atoms[i][0], cfg) for i in ring]
+            member_colors = [_atom_color(atoms[i][0], cfg, i) for i in ring]
             color = tuple(sum(c[k] for c in member_colors) / n_pts
                           for k in range(3))
         else:
@@ -252,6 +254,36 @@ def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
                 _draw_ring_highlight(plotter, idx, pts, cfg)
         except Exception:
             logging.exception("BlenderExportPro: ring panel preview failed")
+
+
+def _draw_labels(plotter, atoms, positions, cfg: StyleConfig) -> None:
+    """Screen-space text labels approximating the exported 3D labels."""
+    labels = []
+    for idx, (symbol, _pos) in enumerate(atoms):
+        if cfg.label_mode == "symbol":
+            labels.append(symbol)
+        elif cfg.label_mode == "index":
+            labels.append(str(idx))
+        else:
+            labels.append(f"{symbol}{idx}")
+    try:
+        plotter.add_point_labels(
+            positions,
+            labels,
+            font_size=max(8, int(cfg.label_size * 40)),
+            text_color=hex_to_rgb(cfg.label_color),
+            shape=None,
+            show_points=False,
+            always_visible=True,
+            name="bep_labels",
+        )
+    except TypeError:
+        try:  # older pyvista without some kwargs
+            plotter.add_point_labels(positions, labels, show_points=False)
+        except Exception:
+            logging.exception("BlenderExportPro: label preview failed")
+    except Exception:
+        logging.exception("BlenderExportPro: label preview failed")
 
 
 def _draw_ring_highlight(plotter, idx, pts, cfg: StyleConfig) -> None:
