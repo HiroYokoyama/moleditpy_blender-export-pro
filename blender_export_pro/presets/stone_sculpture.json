@@ -1,0 +1,18 @@
+{
+    "atom_shape": "uv_sphere",
+    "atom_subdivisions": 4,
+    "atom_radius_mode": "cpk",
+    "atom_radius_scale": 0.75,
+    "atom_jitter": 0.3,
+    "bond_style": "cylinder",
+    "bond_radius": 0.26,
+    "show_multiple_bonds": false,
+    "deformation_noise": 0.3,
+    "deformation_noise_scale": 0.8,
+    "subdivision_level": 2,
+    "shade_smooth": true,
+    "material_preset": "stone",
+    "color_mode": "single",
+    "single_color": "#B8B4AC",
+    "scene_preset": "studio"
+}

@@ -1,0 +1,20 @@
+{
+    "atom_shape": "uv_sphere",
+    "atom_subdivisions": 3,
+    "atom_radius_mode": "uniform",
+    "uniform_radius": 0.22,
+    "atom_jitter": 0.2,
+    "bond_style": "curve",
+    "bond_radius": 0.05,
+    "show_multiple_bonds": true,
+    "multi_bond_offset": 0.14,
+    "deformation_noise": 0.06,
+    "deformation_noise_scale": 4.0,
+    "subdivision_level": 0,
+    "shade_smooth": false,
+    "material_preset": "chalk",
+    "color_mode": "single",
+    "single_color": "#F2F2E9",
+    "scene_preset": "dark",
+    "add_ground_plane": false
+}

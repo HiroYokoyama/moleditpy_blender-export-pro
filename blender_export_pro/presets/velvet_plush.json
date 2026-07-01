@@ -1,0 +1,17 @@
+{
+    "atom_shape": "uv_sphere",
+    "atom_subdivisions": 4,
+    "atom_radius_mode": "cpk",
+    "atom_radius_scale": 0.8,
+    "atom_jitter": 0.45,
+    "bond_style": "cylinder",
+    "bond_radius": 0.28,
+    "show_multiple_bonds": false,
+    "deformation_noise": 0.08,
+    "deformation_noise_scale": 1.5,
+    "subdivision_level": 2,
+    "shade_smooth": true,
+    "material_preset": "velvet",
+    "color_mode": "cpk",
+    "scene_preset": "dark"
+}

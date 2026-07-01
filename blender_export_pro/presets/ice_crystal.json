@@ -1,0 +1,19 @@
+{
+    "atom_shape": "ico_sphere",
+    "atom_subdivisions": 2,
+    "atom_radius_mode": "cpk",
+    "atom_radius_scale": 0.55,
+    "atom_jitter": 0.25,
+    "bond_style": "cylinder",
+    "bond_segments": 6,
+    "bond_radius": 0.14,
+    "show_multiple_bonds": false,
+    "deformation_noise": 0.05,
+    "deformation_noise_scale": 3.0,
+    "subdivision_level": 0,
+    "shade_smooth": false,
+    "material_preset": "ice",
+    "color_mode": "single",
+    "single_color": "#DCEFFB",
+    "scene_preset": "dark"
+}

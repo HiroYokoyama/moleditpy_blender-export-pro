@@ -52,12 +52,33 @@ def test_reset_defaults():
 
 def test_bundled_presets_listed_and_loadable():
     presets = sc.list_presets()
-    assert len(presets) >= 5
+    assert len(presets) >= 20
     assert "Classic Ball And Stick" in presets
     for name, path in presets.items():
         cfg = StyleConfig()
         assert sc.load_preset(cfg, path), name
         assert cfg.material_preset in sc.MATERIAL_PRESETS
+        assert cfg.atom_shape in sc.ATOM_SHAPES
+        assert cfg.bond_style in sc.BOND_STYLES
+        assert cfg.scene_preset in sc.SCENE_PRESETS
+
+
+def test_every_bundled_preset_generates_valid_script():
+    from blender_export_pro import blender_codegen as bc
+
+    atoms = [("C", (0.0, 0.0, 0.0)), ("N", (1.4, 0.0, 0.0))]
+    bonds = [(0, 1, 3)]
+    for name, path in sc.list_presets().items():
+        cfg = StyleConfig()
+        assert sc.load_preset(cfg, path), name
+        script = bc.generate_script(atoms, bonds, cfg)
+        compile(script, f"<preset:{name}>", "exec")
+
+
+def test_every_material_preset_has_codegen_params():
+    from blender_export_pro.blender_codegen import MATERIAL_PRESET_PARAMS
+
+    assert set(sc.MATERIAL_PRESETS) == set(MATERIAL_PRESET_PARAMS)
 
 
 def test_preset_save_and_load(tmp_path):
