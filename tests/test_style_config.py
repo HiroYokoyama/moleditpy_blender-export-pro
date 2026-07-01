@@ -44,6 +44,19 @@ def test_update_non_dict_is_noop():
     assert cfg == StyleConfig()
 
 
+def test_ring_overrides_round_trip():
+    cfg = StyleConfig(ring_overrides={"0-1-2": {"visible": False, "opacity": 0.7}})
+    restored = StyleConfig()
+    restored.update_from_dict(cfg.to_dict())
+    assert restored.ring_overrides == {"0-1-2": {"visible": False, "opacity": 0.7}}
+
+
+def test_ring_overrides_bad_value_becomes_empty():
+    cfg = StyleConfig()
+    cfg.update_from_dict({"ring_overrides": "junk"})
+    assert cfg.ring_overrides == {}
+
+
 def test_reset_defaults():
     cfg = StyleConfig(deformation_noise=0.9, material_preset="glass")
     cfg.reset_defaults()

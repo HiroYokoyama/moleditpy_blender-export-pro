@@ -55,6 +55,18 @@ def test_dialog_has_quick_start_actions():
     }
     assert {"_apply_preset", "_activate_preview", "_activate_standard",
             "_export_script", "_on_setting_changed"} <= methods
+    # per-ring table handlers
+    assert {"_refresh_ring_table", "_on_ring_cell_changed",
+            "_on_ring_row_selected", "_reset_selected_ring"} <= methods
+
+
+def test_highlighted_ring_setter():
+    from blender_export_pro import preview_style
+
+    preview_style.set_highlighted_ring("0-1-2-3-4-5")
+    assert preview_style.get_highlighted_ring() == "0-1-2-3-4-5"
+    preview_style.set_highlighted_ring(None)
+    assert preview_style.get_highlighted_ring() is None
 
 
 def test_preview_style_module_imports_under_mocks():

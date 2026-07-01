@@ -202,6 +202,73 @@ def test_ring_color_custom():
     assert records[0]["color"] == [1.0, 0.0, 0.0]
 
 
+# ------------------------------------------------------ per-ring overrides
+
+
+def test_ring_key_is_sorted_and_stable():
+    assert bc.ring_key((5, 0, 3, 1, 4, 2)) == "0-1-2-3-4-5"
+    assert bc.ring_key([2, 1, 0]) == bc.ring_key((0, 2, 1))
+
+
+def test_resolve_ring_style_defaults():
+    cfg = StyleConfig(ring_scale=0.8, ring_opacity=0.4)
+    style = bc.resolve_ring_style(cfg, "0-1-2")
+    assert style == {
+        "visible": True, "scale": 0.8, "thickness": cfg.ring_thickness,
+        "opacity": 0.4, "color": None,
+    }
+
+
+def test_resolve_ring_style_override():
+    cfg = StyleConfig(ring_overrides={
+        "0-1-2": {"visible": False, "color": "#112233", "opacity": 0.9}
+    })
+    style = bc.resolve_ring_style(cfg, "0-1-2")
+    assert style["visible"] is False
+    assert style["color"] == "#112233"
+    assert style["opacity"] == 0.9
+    assert style["scale"] == cfg.ring_scale  # not overridden -> global
+
+
+def test_ring_records_apply_overrides():
+    atoms = [("C", (float(i), 0.0, 0.0)) for i in range(3)]
+    cfg = StyleConfig(
+        ring_style="panel",
+        ring_overrides={"0-1-2": {"visible": False, "color": "#FF0000",
+                                  "thickness": 0.5}},
+    )
+    rec = bc._ring_records(atoms, [(0, 1, 2)], cfg)[0]
+    assert rec["visible"] is False
+    assert rec["color"] == [1.0, 0.0, 0.0]
+    assert rec["thickness"] == 0.5
+    assert rec["opacity"] == cfg.ring_opacity
+
+
+def test_ring_override_key_survives_selection_remap():
+    """Overrides are keyed on original indices even when a selection
+    remaps the exported atom order."""
+    mol = make_benzene_like()  # ring atoms 0-5, substituent 6
+    cfg = StyleConfig(
+        ring_style="panel",
+        ring_overrides={"0-1-2-3-4-5": {"color": "#00FF00"}},
+    )
+    script = bc.generate_script_from_mol(
+        mol, cfg, selected_indices=[5, 4, 3, 2, 1, 0])
+    assert '"color": [\n   0.0,\n   1.0,\n   0.0\n  ]' in (
+        script.replace("\r\n", "\n"))
+
+
+def test_hidden_ring_script_still_compiles():
+    mol = make_benzene_like()
+    cfg = StyleConfig(
+        ring_style="panel",
+        ring_overrides={"0-1-2-3-4-5": {"visible": False}},
+    )
+    script = bc.generate_script_from_mol(mol, cfg)
+    compile(script, "<generated>", "exec")
+    assert '"visible": false' in script
+
+
 def test_generate_script_from_mol_empty_selection_raises():
     mol = FakeMol([], [], [])
     with pytest.raises(ValueError):
