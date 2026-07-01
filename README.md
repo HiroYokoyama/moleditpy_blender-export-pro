@@ -34,8 +34,15 @@ the machine running MoleditPy.
   gold, copper, velvet, wax, gummy, ceramic, chalk, neon (emissive), ice,
   stone, iridescent — Principled BSDF with version-robust socket naming
   (Blender 2.8x–4.x) plus metallic tinting and emission.
-- **Scene setup**: 3-point studio lighting, world background, ground plane /
-  shadow catcher, auto-framed camera, optional turntable animation.
+- **Scene setup**: 3-point studio lighting, ground plane / shadow catcher,
+  auto-framed camera, optional turntable animation.
+- **Background & render**: preset backdrop, custom color, HDRI environment
+  image file (browse from the panel; also lights the scene), or transparent
+  film for compositing — plus optional Cycles/EEVEE engine, sample count and
+  output resolution so the script is render-ready.
+- **Atom sizes**: global vdW scale, a one-click hydrogen size factor, and
+  per-selected-atom scaling (relative factor or absolute radius) with reset
+  buttons — overrides are saved with the project.
 - **Partial export** of the current atom selection.
 - **Consistent with the main app**: atom colors come from MoleditPy's own
   CPK color table (including your customizations) and radii from RDKit's
