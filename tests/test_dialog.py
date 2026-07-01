@@ -44,6 +44,19 @@ def test_dialog_widget_fields_match_style_config():
     assert {name for name, _kind in widget_fields} <= cfg_fields
 
 
+def test_dialog_has_quick_start_actions():
+    """The Quick Start handlers (preset, style switch, export) must exist."""
+    source = (Path(ROOT) / "blender_export_pro" / "dialog.py").read_text(
+        encoding="utf-8")
+    tree = ast.parse(source)
+    methods = {
+        node.name for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+    }
+    assert {"_apply_preset", "_activate_preview", "_activate_standard",
+            "_export_script", "_on_setting_changed"} <= methods
+
+
 def test_preview_style_module_imports_under_mocks():
     with mock_optional_imports():
         mod = _fresh_import("blender_export_pro.preview_style")

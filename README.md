@@ -43,13 +43,22 @@ Restart MoleditPy (or reload plugins).
 
 ## Usage
 
-1. Load or build a molecule with 3D coordinates.
-2. Open `Visuals > Blender Export Pro…`, pick a preset or tune the tabs.
-3. (Optional) Select the `Blender Export Pro (Preview)` drawing style in the
-   3D panel to see a live approximation.
-4. On the Export tab, click **Generate Blender Script…** (or use
-   `File > Export > Export to Blender Script (.py)…` for a one-click export).
-5. In Blender: Scripting workspace → open the generated `.py` → **Run Script**.
+The panel opens with a **Quick Start** section — the whole workflow is three
+clicks:
+
+1. Load or build a molecule with 3D coordinates, then open
+   `Visuals > Blender Export Pro…`.
+2. Pick a style preset and click **Apply**.
+3. Click **Show in 3D View** — the 3D view switches to the styled preview.
+   While it is active, every setting change updates the view live.
+   **Standard View** switches back to normal ball-and-stick.
+4. Click **Export Blender Script…**, then in Blender: Scripting workspace →
+   open the generated `.py` → **Run Script**.
+
+Every detail (atom shapes, bond styles, deformation, materials, lighting,
+turntable animation, export options, preset files) is available under the
+collapsible **Advanced Settings** tabs. `File > Export > Export to Blender
+Script (.py)…` also works as a one-click export with the current style.
 
 ## Development
 
