@@ -12,7 +12,11 @@ import os
 ATOM_SHAPES = ("uv_sphere", "ico_sphere", "metaball")
 ATOM_RADIUS_MODES = ("cpk", "uniform")
 BOND_STYLES = ("cylinder", "curve")
-MATERIAL_PRESETS = ("matte", "plastic", "metal", "glass", "toon", "clay")
+MATERIAL_PRESETS = (
+    "matte", "plastic", "metal", "glass", "toon", "clay",
+    "chrome", "gold", "copper", "velvet", "wax", "gummy",
+    "ceramic", "chalk", "neon", "ice", "stone", "iridescent",
+)
 SCENE_PRESETS = ("none", "studio", "dark")
 BLENDER_TARGETS = ("4.x", "3.x", "2.8x")
 

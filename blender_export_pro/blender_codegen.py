@@ -10,13 +10,48 @@ import json
 from .element_data import radius_of, color_of
 from .style_config import StyleConfig
 
+def _mat(metallic=0.0, roughness=0.5, transmission=0.0, ior=1.45,
+         subsurface=0.0, emission=0.0, tint=None):
+    """Material preset parameter record.
+
+    tint: optional (r, g, b) multiplied onto the base color inside Blender —
+    lets e.g. gold/copper keep a metallic hue on top of CPK colors.
+    """
+    return {
+        "metallic": metallic,
+        "roughness": roughness,
+        "transmission": transmission,
+        "ior": ior,
+        "subsurface": subsurface,
+        "emission": emission,
+        "tint": list(tint) if tint else [1.0, 1.0, 1.0],
+    }
+
+
 MATERIAL_PRESET_PARAMS = {
-    "matte":   {"metallic": 0.0, "roughness": 0.9, "transmission": 0.0, "ior": 1.45, "subsurface": 0.0},
-    "plastic": {"metallic": 0.0, "roughness": 0.3, "transmission": 0.0, "ior": 1.45, "subsurface": 0.0},
-    "metal":   {"metallic": 1.0, "roughness": 0.25, "transmission": 0.0, "ior": 2.5, "subsurface": 0.0},
-    "glass":   {"metallic": 0.0, "roughness": 0.05, "transmission": 1.0, "ior": 1.45, "subsurface": 0.0},
-    "toon":    {"metallic": 0.0, "roughness": 1.0, "transmission": 0.0, "ior": 1.45, "subsurface": 0.0},
-    "clay":    {"metallic": 0.0, "roughness": 0.8, "transmission": 0.0, "ior": 1.4, "subsurface": 0.15},
+    "matte":      _mat(roughness=0.9),
+    "plastic":    _mat(roughness=0.3),
+    "metal":      _mat(metallic=1.0, roughness=0.25, ior=2.5),
+    "glass":      _mat(roughness=0.05, transmission=1.0),
+    "toon":       _mat(roughness=1.0),
+    "clay":       _mat(roughness=0.8, ior=1.4, subsurface=0.15),
+    "chrome":     _mat(metallic=1.0, roughness=0.03, ior=3.0),
+    "gold":       _mat(metallic=1.0, roughness=0.2, ior=0.47,
+                       tint=(1.0, 0.77, 0.34)),
+    "copper":     _mat(metallic=1.0, roughness=0.3, ior=1.1,
+                       tint=(0.95, 0.64, 0.54)),
+    "velvet":     _mat(roughness=1.0, subsurface=0.1),
+    "wax":        _mat(roughness=0.45, subsurface=0.4, ior=1.44),
+    "gummy":      _mat(roughness=0.25, transmission=0.35, subsurface=0.5,
+                       ior=1.35),
+    "ceramic":    _mat(roughness=0.1, ior=1.52),
+    "chalk":      _mat(roughness=1.0, tint=(0.95, 0.95, 0.95)),
+    "neon":       _mat(roughness=0.4, emission=4.0),
+    "ice":        _mat(roughness=0.15, transmission=0.9, ior=1.31,
+                       tint=(0.85, 0.95, 1.0)),
+    "stone":      _mat(roughness=0.95, tint=(0.8, 0.8, 0.78)),
+    "iridescent": _mat(metallic=0.8, roughness=0.15, ior=1.8,
+                       tint=(0.9, 0.85, 1.0)),
 }
 
 
@@ -180,12 +215,18 @@ def make_material(name, rgb):
             break
     if bsdf is None:
         return mat
+    tint = MAT_PARAMS.get("tint", [1.0, 1.0, 1.0])
+    rgb = [min(rgb[k] * tint[k], 1.0) for k in range(3)]
     _set_input(bsdf, ["Base Color"], (rgb[0], rgb[1], rgb[2], 1.0))
     _set_input(bsdf, ["Metallic"], MAT_PARAMS["metallic"])
     _set_input(bsdf, ["Roughness"], MAT_PARAMS["roughness"])
     _set_input(bsdf, ["Transmission Weight", "Transmission"], MAT_PARAMS["transmission"])
     _set_input(bsdf, ["IOR"], MAT_PARAMS["ior"])
     _set_input(bsdf, ["Subsurface Weight", "Subsurface"], MAT_PARAMS["subsurface"])
+    emission = MAT_PARAMS.get("emission", 0.0)
+    if emission > 0.0:
+        _set_input(bsdf, ["Emission Color", "Emission"], (rgb[0], rgb[1], rgb[2], 1.0))
+        _set_input(bsdf, ["Emission Strength"], emission)
     if MAT_PARAMS["transmission"] > 0.5 and hasattr(mat, "blend_method"):
         mat.blend_method = "BLEND"
     mat.diffuse_color = (rgb[0], rgb[1], rgb[2], 1.0)
