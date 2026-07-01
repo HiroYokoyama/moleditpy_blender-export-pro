@@ -39,6 +39,8 @@ def initialize(context) -> None:
     context.register_3d_style(STYLE_NAME, _draw_preview)
     context.add_export_action(
         "Export to Blender Script (.py)…", lambda: quick_export(context))
+    context.add_export_action(
+        "Export to 3D Model (.glb / .usda)…", lambda: quick_export_mesh(context))
 
     context.register_save_handler(_style.to_dict)
     context.register_load_handler(_style.update_from_dict)
@@ -140,3 +142,35 @@ def quick_export(context) -> None:
 
     save_config(_style)
     context.show_status_message("Blender script exported.", 4000)
+
+
+def quick_export_mesh(context) -> None:
+    """Export menu action: write a Blender-free .glb / .usda 3D model."""
+    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+
+    from .mesh_export import export_mesh_file
+
+    mw = context.get_main_window()
+    mol = context.current_molecule
+    if mol is None:
+        context.show_status_message(
+            "Blender Export Pro: no molecule with 3D coordinates.", 4000)
+        return
+
+    path, _ = QFileDialog.getSaveFileName(
+        mw, "Save 3D Model", "molecule.glb",
+        "glTF binary (*.glb);;USD ASCII (*.usda)")
+    if not path:
+        return
+    try:
+        export_mesh_file(mol, _style, path)
+    except Exception as exc:
+        logging.exception("BlenderExportPro: mesh export failed")
+        QMessageBox.critical(mw, "Blender Export Pro",
+                             f"3D model export failed:\n{exc}")
+        return
+
+    save_config(_style)
+    import os
+    context.show_status_message(
+        f"3D model exported: {os.path.basename(path)}", 4000)
