@@ -38,9 +38,11 @@ from .blender_codegen import generate_script_from_mol
 from .style_config import (
     ATOM_RADIUS_MODES,
     ATOM_SHAPES,
+    BACKGROUND_MODES,
     BLENDER_TARGETS,
     BOND_STYLES,
     MATERIAL_PRESETS,
+    RENDER_ENGINES,
     RING_COLOR_MODES,
     RING_STYLES,
     SCENE_PRESETS,
@@ -468,6 +470,64 @@ class BlenderExportDialog(QDialog):
             "0 = no animation. 240 frames ≈ 10 s at 24 fps.")
         form.addRow("Turntable frames:", self.turntable_frames)
 
+        self.background_mode = QComboBox()
+        self.background_mode.addItems(BACKGROUND_MODES)
+        self.background_mode.setToolTip(
+            "preset: light/dark backdrop from the lighting preset · "
+            "color: the custom color below · hdri: an environment image "
+            "file (.hdr/.exr, also lights the scene) · transparent: "
+            "renders with a see-through background (for compositing).")
+        form.addRow("Background:", self.background_mode)
+
+        self.background_color = QLineEdit()
+        self.background_color.setPlaceholderText("#RRGGBB")
+        self.background_color.setToolTip(
+            "Background color when the mode is 'color'.")
+        form.addRow("Background color:", self.background_color)
+
+        row = QHBoxLayout()
+        self.hdri_path = QLineEdit()
+        self.hdri_path.setPlaceholderText("environment image (.hdr / .exr)")
+        self.hdri_path.setToolTip(
+            "Environment image used when the mode is 'hdri'. The path is "
+            "written into the script, so keep the file available on the "
+            "machine running Blender.")
+        row.addWidget(self.hdri_path)
+        browse_btn = QPushButton("Browse…")
+        browse_btn.clicked.connect(self._browse_hdri)
+        row.addWidget(browse_btn)
+        form.addRow("HDRI file:", row)
+
+        self.hdri_strength = self._dspin(
+            0.0, 20.0, 0.1, "Brightness of the HDRI environment lighting.")
+        form.addRow("HDRI strength:", self.hdri_strength)
+
+        self.render_engine = QComboBox()
+        self.render_engine.addItems(RENDER_ENGINES)
+        self.render_engine.setToolTip(
+            "keep: don't change Blender's render settings · cycles: "
+            "photorealistic (glass/HDRI look best) · eevee: fast preview "
+            "quality.")
+        form.addRow("Render engine:", self.render_engine)
+
+        self.render_samples = QSpinBox()
+        self.render_samples.setRange(1, 8192)
+        self.render_samples.setToolTip(
+            "Render quality (samples). Higher = cleaner but slower.")
+        form.addRow("Render samples:", self.render_samples)
+
+        row = QHBoxLayout()
+        self.resolution_x = QSpinBox()
+        self.resolution_x.setRange(16, 16384)
+        self.resolution_y = QSpinBox()
+        self.resolution_y.setRange(16, 16384)
+        row.addWidget(self.resolution_x)
+        row.addWidget(QLabel("×"))
+        row.addWidget(self.resolution_y)
+        for box in (self.resolution_x, self.resolution_y):
+            box.setToolTip("Output resolution (applied when engine ≠ keep).")
+        form.addRow("Resolution:", row)
+
         self._tabs.addTab(tab, "Scene")
 
     def _build_export_tab(self):
@@ -568,6 +628,14 @@ class BlenderExportDialog(QDialog):
         ("add_ground_plane", "bool"),
         ("add_camera", "bool"),
         ("turntable_frames", "int"),
+        ("background_mode", "combo"),
+        ("background_color", "text"),
+        ("hdri_path", "text"),
+        ("hdri_strength", "float"),
+        ("render_engine", "combo"),
+        ("render_samples", "int"),
+        ("resolution_x", "int"),
+        ("resolution_y", "int"),
         ("blender_target", "combo"),
         ("clear_scene", "bool"),
         ("collection_name", "text"),
@@ -635,6 +703,17 @@ class BlenderExportDialog(QDialog):
                 self._context.refresh_3d_view()
         except Exception:
             logging.exception("BlenderExportPro: live preview refresh failed")
+
+    def _browse_hdri(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose Environment Image", "",
+            "Environment images (*.hdr *.exr *.png *.jpg *.jpeg);;All files (*)")
+        if path:
+            self.hdri_path.setText(path)
+            idx = self.background_mode.findText("hdri")
+            if idx >= 0:
+                self.background_mode.setCurrentIndex(idx)
+            self._on_setting_changed()
 
     # ------------------------------------------------------ atom size tools
 

@@ -211,6 +211,37 @@ def test_ring_color_custom():
     assert records[0]["color"] == [1.0, 0.0, 0.0]
 
 
+# ----------------------------------------------------- background & render
+
+
+def test_hdri_background_in_script():
+    script = _generate(background_mode="hdri", hdri_path="C:/tex/studio.hdr",
+                       hdri_strength=2.5)
+    assert "HDRI_PATH = 'C:/tex/studio.hdr'" in script
+    assert "ShaderNodeTexEnvironment" in script
+    assert "HDRI_STRENGTH = 2.5" in script
+
+
+def test_transparent_background_in_script():
+    script = _generate(background_mode="transparent")
+    assert "film_transparent = True" in script
+
+
+def test_color_background_in_script():
+    script = _generate(background_mode="color", background_color="#112233")
+    assert "BG_MODE = 'color'" in script
+    assert "0.0667" in script  # 0x11/255
+
+
+def test_render_settings_in_script():
+    script = _generate(render_engine="cycles", render_samples=64,
+                       resolution_x=800, resolution_y=600)
+    assert "RENDER_ENGINE = 'cycles'" in script
+    assert "RENDER_SAMPLES = 64" in script
+    assert "RESOLUTION = (800, 600)" in script
+    compile(script, "<generated>", "exec")
+
+
 # -------------------------------------------------- atom radius resolution
 
 
