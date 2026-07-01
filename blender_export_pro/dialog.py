@@ -37,6 +37,8 @@ from .style_config import (
     BLENDER_TARGETS,
     BOND_STYLES,
     MATERIAL_PRESETS,
+    RING_COLOR_MODES,
+    RING_STYLES,
     SCENE_PRESETS,
     StyleConfig,
 )
@@ -72,6 +74,7 @@ class BlenderExportDialog(QDialog):
 
         self._build_atoms_tab()
         self._build_bonds_tab()
+        self._build_rings_tab()
         self._build_deformation_tab()
         self._build_material_tab()
         self._build_scene_tab()
@@ -217,6 +220,54 @@ class BlenderExportDialog(QDialog):
         form.addRow("Multi-bond offset (Å):", self.multi_bond_offset)
 
         self._tabs.addTab(tab, "Bonds")
+
+    def _build_rings_tab(self):
+        tab = QWidget()
+        form = QFormLayout(tab)
+
+        self.ring_style = QComboBox()
+        self.ring_style.addItems(RING_STYLES)
+        self.ring_style.setToolTip(
+            "panel: draw rings (benzene etc.) as filled polygon plates — a "
+            "hexagonal panel for a six-membered ring. none: bonds only.")
+        form.addRow("Ring rendering:", self.ring_style)
+
+        self.ring_aromatic_only = QCheckBox("Aromatic rings only")
+        self.ring_aromatic_only.setToolTip(
+            "On: only aromatic rings like benzene get a panel. "
+            "Off: every small ring (3-8 atoms), e.g. cyclohexane too.")
+        form.addRow(self.ring_aromatic_only)
+
+        self.ring_scale = self._dspin(
+            0.1, 1.5, 0.05,
+            "Panel size relative to the ring atoms. <1 insets the panel "
+            "corners toward the ring center; 1.0 touches the atoms.")
+        form.addRow("Panel size:", self.ring_scale)
+
+        self.ring_thickness = self._dspin(
+            0.0, 1.0, 0.02,
+            "Plate thickness in Angstrom. 0 = flat sheet, "
+            "0.05-0.15 = solid plate.")
+        form.addRow("Plate thickness (Å):", self.ring_thickness)
+
+        self.ring_color_mode = QComboBox()
+        self.ring_color_mode.addItems(RING_COLOR_MODES)
+        self.ring_color_mode.setToolTip(
+            "custom: use the panel color below · match_atoms: average of "
+            "the ring atoms' colors.")
+        form.addRow("Panel color mode:", self.ring_color_mode)
+
+        self.ring_color = QLineEdit()
+        self.ring_color.setPlaceholderText("#RRGGBB")
+        self.ring_color.setToolTip("Panel color when the mode is 'custom'.")
+        form.addRow("Panel color:", self.ring_color)
+
+        self.ring_opacity = self._dspin(
+            0.0, 1.0, 0.05,
+            "Panel transparency. ~0.5 = stained-glass look, 1.0 = solid.")
+        form.addRow("Panel opacity:", self.ring_opacity)
+
+        self._tabs.addTab(tab, "Rings")
 
     def _build_deformation_tab(self):
         tab = QWidget()
@@ -394,6 +445,13 @@ class BlenderExportDialog(QDialog):
         ("bond_segments", "int"),
         ("show_multiple_bonds", "bool"),
         ("multi_bond_offset", "float"),
+        ("ring_style", "combo"),
+        ("ring_aromatic_only", "bool"),
+        ("ring_scale", "float"),
+        ("ring_thickness", "float"),
+        ("ring_color_mode", "combo"),
+        ("ring_color", "text"),
+        ("ring_opacity", "float"),
         ("deformation_noise", "float"),
         ("deformation_noise_scale", "float"),
         ("deformation_bend", "float"),
