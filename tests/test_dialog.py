@@ -63,6 +63,19 @@ def test_dialog_has_quick_start_actions():
             "_reset_selected_atom_sizes", "_reset_all_atom_sizes"} <= methods
 
 
+def test_preview_material_kwargs_never_collide_with_add_mesh_args():
+    """Regression: add_mesh() passes color/name/smooth_shading explicitly;
+    material kwargs duplicating them raise TypeError at draw time."""
+    from blender_export_pro import preview_style
+    from blender_export_pro.style_config import MATERIAL_PRESETS, StyleConfig
+
+    reserved = {"color", "name", "smooth_shading"}
+    for preset in MATERIAL_PRESETS + ("unknown_preset",):
+        kwargs = preview_style._material_kwargs(
+            StyleConfig(material_preset=preset))
+        assert not reserved & set(kwargs), (preset, kwargs)
+
+
 def test_highlighted_ring_setter():
     from blender_export_pro import preview_style
 

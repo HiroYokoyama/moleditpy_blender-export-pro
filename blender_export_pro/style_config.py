@@ -22,6 +22,7 @@ MATERIAL_PRESETS = (
 SCENE_PRESETS = ("none", "studio", "dark")
 BACKGROUND_MODES = ("preset", "color", "hdri", "transparent")
 RENDER_ENGINES = ("keep", "cycles", "eevee")
+LABEL_MODES = ("none", "symbol", "symbol_index", "index")
 RING_STYLES = ("none", "panel")
 RING_COLOR_MODES = ("custom", "match_atoms")
 BLENDER_TARGETS = ("4.x", "3.x", "2.8x")
@@ -42,6 +43,15 @@ class StyleConfig:
     # Per-atom radius overrides, keyed by the atom's RDKit index as a string
     # (JSON-safe). Values: {"scale": factor} or {"radius": absolute Angstrom}.
     atom_overrides: dict = field(default_factory=dict)
+    # Per-atom color overrides: {index_str: "#RRGGBB"}.
+    atom_color_overrides: dict = field(default_factory=dict)
+
+    # Labels (3D text objects for atom symbols / indices)
+    label_mode: str = "none"         # none | symbol | symbol_index | index
+    label_size: float = 0.35
+    label_color: str = "#202020"
+    label_offset: float = 1.3        # distance from atom center, x radius
+    label_face_camera: bool = True   # billboard labels toward the camera
 
     # Bonds
     bond_style: str = "cylinder"

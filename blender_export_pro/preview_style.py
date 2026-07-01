@@ -48,15 +48,17 @@ def _atom_color(symbol: str, cfg: StyleConfig) -> tuple:
     return color_of(symbol)
 
 
+# NOTE: must never contain keys that draw_preview_style passes to add_mesh
+# explicitly (color, name, smooth_shading) — duplicate kwargs raise TypeError.
 _PREVIEW_MATERIALS = {
     "metal":      {"metallic": 1.0, "roughness": 0.3, "pbr": True},
     "chrome":     {"metallic": 1.0, "roughness": 0.05, "pbr": True},
     "gold":       {"metallic": 1.0, "roughness": 0.25, "pbr": True},
     "copper":     {"metallic": 1.0, "roughness": 0.35, "pbr": True},
     "iridescent": {"metallic": 0.8, "roughness": 0.15, "pbr": True},
-    "glass":      {"opacity": 0.35, "specular": 1.0, "smooth_shading": True},
-    "ice":        {"opacity": 0.45, "specular": 1.0, "smooth_shading": True},
-    "gummy":      {"opacity": 0.75, "specular": 0.6, "smooth_shading": True},
+    "glass":      {"opacity": 0.35, "specular": 1.0},
+    "ice":        {"opacity": 0.45, "specular": 1.0},
+    "gummy":      {"opacity": 0.75, "specular": 0.6},
     "matte":      {"specular": 0.05, "diffuse": 1.0},
     "chalk":      {"specular": 0.0, "diffuse": 1.0, "ambient": 0.25},
     "stone":      {"specular": 0.02, "diffuse": 0.95, "ambient": 0.1},
@@ -64,13 +66,13 @@ _PREVIEW_MATERIALS = {
     "toon":       {"specular": 0.0, "diffuse": 1.0, "ambient": 0.35},
     "neon":       {"specular": 0.0, "diffuse": 0.4, "ambient": 0.9},
     "clay":       {"specular": 0.1, "diffuse": 0.9, "ambient": 0.15},
-    "wax":        {"specular": 0.3, "diffuse": 0.9, "smooth_shading": True},
-    "ceramic":    {"specular": 0.9, "diffuse": 0.9, "smooth_shading": True},
+    "wax":        {"specular": 0.3, "diffuse": 0.9},
+    "ceramic":    {"specular": 0.9, "diffuse": 0.9},
 }
 
 
 def _material_kwargs(cfg: StyleConfig) -> dict:
-    default = {"specular": 0.5, "smooth_shading": True}
+    default = {"specular": 0.5}
     return dict(_PREVIEW_MATERIALS.get(cfg.material_preset, default))
 
 
