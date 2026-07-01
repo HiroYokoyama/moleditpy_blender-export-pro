@@ -328,6 +328,13 @@ SCENE_PRESET = {cfg.scene_preset!r}
 ADD_GROUND = {cfg.add_ground_plane!r}
 ADD_CAMERA = {cfg.add_camera!r}
 TURNTABLE_FRAMES = {int(cfg.turntable_frames)!r}
+BG_MODE = {cfg.background_mode!r}
+BG_COLOR = {json.dumps([round(c, 4) for c in hex_to_rgb(cfg.background_color)])}
+HDRI_PATH = {cfg.hdri_path!r}
+HDRI_STRENGTH = {float(cfg.hdri_strength)!r}
+RENDER_ENGINE = {cfg.render_engine!r}
+RENDER_SAMPLES = {int(cfg.render_samples)!r}
+RESOLUTION = ({int(cfg.resolution_x)!r}, {int(cfg.resolution_y)!r})
 
 random.seed(42)
 '''
@@ -620,19 +627,6 @@ def setup_scene(coll):
     add_light("BEP_Fill", "AREA", center + Vector((-dist, -dist * 0.5, dist * 0.5)), key_energy * 0.3)
     add_light("BEP_Rim", "AREA", center + Vector((0.0, dist, dist * 0.7)), key_energy * 0.5)
 
-    world = bpy.context.scene.world
-    if world is None:
-        world = bpy.data.worlds.new("BEP_World")
-        bpy.context.scene.world = world
-    world.use_nodes = True
-    bg = world.node_tree.nodes.get("Background")
-    if bg:
-        if SCENE_PRESET == "dark":
-            bg.inputs[0].default_value = (0.01, 0.01, 0.015, 1.0)
-        else:
-            bg.inputs[0].default_value = (0.9, 0.9, 0.92, 1.0)
-        bg.inputs[1].default_value = 1.0
-
     if ADD_GROUND:
         zmin = min(a["pos"][2] - a["radius"] for a in ATOMS)
         bpy.ops.mesh.primitive_plane_add(
@@ -651,6 +645,74 @@ def setup_scene(coll):
         cam.rotation_mode = "QUATERNION"
         cam.rotation_quaternion = direction.to_track_quat("-Z", "Y")
         bpy.context.scene.camera = cam
+
+
+def setup_background():
+    """World background: scene-preset color, custom color, HDRI image, or
+    transparent film."""
+    scene = bpy.context.scene
+    if BG_MODE == "transparent":
+        scene.render.film_transparent = True
+        return
+    if BG_MODE == "preset" and SCENE_PRESET == "none":
+        return  # leave the world untouched
+
+    world = scene.world
+    if world is None:
+        world = bpy.data.worlds.new("BEP_World")
+        scene.world = world
+    world.use_nodes = True
+    tree = world.node_tree
+    bg = tree.nodes.get("Background")
+    if bg is None:
+        return
+
+    if BG_MODE == "hdri" and HDRI_PATH:
+        try:
+            img = bpy.data.images.load(HDRI_PATH, check_existing=True)
+            env = tree.nodes.new("ShaderNodeTexEnvironment")
+            env.image = img
+            env.location = (bg.location.x - 300, bg.location.y)
+            tree.links.new(env.outputs["Color"], bg.inputs["Color"])
+            bg.inputs[1].default_value = HDRI_STRENGTH
+            return
+        except Exception as exc:
+            print("Blender Export Pro: could not load HDRI %r: %s"
+                  % (HDRI_PATH, exc))
+
+    if BG_MODE == "color":
+        bg.inputs[0].default_value = (BG_COLOR[0], BG_COLOR[1], BG_COLOR[2], 1.0)
+    elif SCENE_PRESET == "dark":
+        bg.inputs[0].default_value = (0.01, 0.01, 0.015, 1.0)
+    else:
+        bg.inputs[0].default_value = (0.9, 0.9, 0.92, 1.0)
+    bg.inputs[1].default_value = 1.0
+
+
+def setup_render():
+    """Optional render engine / quality / resolution setup."""
+    if RENDER_ENGINE == "keep":
+        return
+    scene = bpy.context.scene
+    if RENDER_ENGINE == "cycles":
+        try:
+            scene.render.engine = "CYCLES"
+            scene.cycles.samples = RENDER_SAMPLES
+        except Exception as exc:
+            print("Blender Export Pro: Cycles setup failed: %s" % exc)
+    else:
+        for name in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE"):
+            try:
+                scene.render.engine = name
+                break
+            except Exception:
+                continue
+        try:
+            scene.eevee.taa_render_samples = RENDER_SAMPLES
+        except Exception as exc:
+            print("Blender Export Pro: EEVEE samples setup failed: %s" % exc)
+    scene.render.resolution_x = RESOLUTION[0]
+    scene.render.resolution_y = RESOLUTION[1]
 
 
 def setup_turntable(coll):
@@ -689,6 +751,8 @@ def main():
         for idx, rec in enumerate(RINGS):
             create_ring_panel(coll, idx, rec)
     setup_scene(coll)
+    setup_background()
+    setup_render()
     setup_turntable(coll)
     print("Blender Export Pro: built %d atoms / %d bonds." % (len(ATOMS), len(BONDS)))
 

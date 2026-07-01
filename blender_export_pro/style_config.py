@@ -20,6 +20,8 @@ MATERIAL_PRESETS = (
     "ceramic", "chalk", "neon", "ice", "stone", "iridescent",
 )
 SCENE_PRESETS = ("none", "studio", "dark")
+BACKGROUND_MODES = ("preset", "color", "hdri", "transparent")
+RENDER_ENGINES = ("keep", "cycles", "eevee")
 RING_STYLES = ("none", "panel")
 RING_COLOR_MODES = ("custom", "match_atoms")
 BLENDER_TARGETS = ("4.x", "3.x", "2.8x")
@@ -80,6 +82,16 @@ class StyleConfig:
     add_ground_plane: bool = True
     add_camera: bool = True
     turntable_frames: int = 0        # 0 disables the turntable animation
+
+    # Background & render
+    background_mode: str = "preset"  # preset | color | hdri | transparent
+    background_color: str = "#F0F0F0"
+    hdri_path: str = ""              # .hdr/.exr/.png environment image
+    hdri_strength: float = 1.0
+    render_engine: str = "keep"      # keep | cycles | eevee
+    render_samples: int = 128
+    resolution_x: int = 1920
+    resolution_y: int = 1080
 
     # Export
     blender_target: str = "4.x"
