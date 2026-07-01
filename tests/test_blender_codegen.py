@@ -2,7 +2,7 @@
 
 import pytest
 
-from conftest import FakeMol, make_ethanol_like
+from conftest import FakeMol, make_benzene_like, make_ethanol_like
 
 from blender_export_pro import blender_codegen as bc
 from blender_export_pro.style_config import StyleConfig
@@ -123,6 +123,83 @@ def test_generate_script_from_mol():
     script = bc.generate_script_from_mol(make_ethanol_like(), StyleConfig())
     compile(script, "<generated>", "exec")
     assert '"symbol": "O"' in script
+
+
+# ---------------------------------------------------------------- rings
+
+
+def test_extract_rings_aromatic_only():
+    mol = make_benzene_like()
+    assert bc.extract_rings(mol, aromatic_only=True) == [(0, 1, 2, 3, 4, 5)]
+
+
+def test_extract_rings_non_aromatic_filtered():
+    mol = FakeMol(
+        ["C"] * 6,
+        [(i, 0, 0) for i in range(6)],
+        [],
+        rings=[(0, 1, 2, 3, 4, 5)],
+        aromatic=(),  # cyclohexane-like: not aromatic
+    )
+    assert bc.extract_rings(mol, aromatic_only=True) == []
+    assert bc.extract_rings(mol, aromatic_only=False) == [(0, 1, 2, 3, 4, 5)]
+
+
+def test_extract_rings_selection_boundary_drops_ring():
+    mol = make_benzene_like()
+    assert bc.extract_rings(mol, selected_indices=[0, 1, 2]) == []
+
+
+def test_extract_rings_selection_remaps():
+    mol = make_benzene_like()
+    rings = bc.extract_rings(mol, selected_indices=[0, 1, 2, 3, 4, 5])
+    assert rings == [(0, 1, 2, 3, 4, 5)]
+
+
+def test_extract_rings_size_limits():
+    mol = FakeMol(
+        ["C"] * 12,
+        [(i, 0, 0) for i in range(12)],
+        [],
+        rings=[(0, 1), (0, 1, 2, 3, 4, 5, 6, 7, 8)],  # too small / too big
+    )
+    assert bc.extract_rings(mol, aromatic_only=False) == []
+
+
+def test_extract_rings_without_ring_info():
+    assert bc.extract_rings(object()) == []
+
+
+def test_ring_panel_script_compiles_and_contains_data():
+    mol = make_benzene_like()
+    cfg = StyleConfig(ring_style="panel", ring_thickness=0.1)
+    script = bc.generate_script_from_mol(mol, cfg)
+    compile(script, "<generated>", "exec")
+    assert "create_ring_panel" in script
+    assert '"indices": [\n   0,\n   1,\n   2,\n   3,\n   4,\n   5\n  ]' in (
+        script.replace("\r\n", "\n"))
+    assert "RING_STYLE = 'panel'" in script
+
+
+def test_ring_style_none_exports_empty_rings():
+    mol = make_benzene_like()
+    script = bc.generate_script_from_mol(mol, StyleConfig(ring_style="none"))
+    assert "RINGS = []" in script
+
+
+def test_ring_color_match_atoms():
+    atoms = [("C", (float(i), 0.0, 0.0)) for i in range(3)]
+    cfg = StyleConfig(ring_style="panel", ring_color_mode="match_atoms")
+    records = bc._ring_records(atoms, [(0, 1, 2)], cfg)
+    from blender_export_pro.element_data import color_of
+    assert records[0]["color"] == [round(c, 4) for c in color_of("C")]
+
+
+def test_ring_color_custom():
+    atoms = [("C", (float(i), 0.0, 0.0)) for i in range(3)]
+    cfg = StyleConfig(ring_style="panel", ring_color="#FF0000")
+    records = bc._ring_records(atoms, [(0, 1, 2)], cfg)
+    assert records[0]["color"] == [1.0, 0.0, 0.0]
 
 
 def test_generate_script_from_mol_empty_selection_raises():

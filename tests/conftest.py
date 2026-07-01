@@ -89,11 +89,23 @@ class FakeConformer:
 
 
 class FakeAtom:
-    def __init__(self, symbol):
+    def __init__(self, symbol, aromatic=False):
         self._symbol = symbol
+        self._aromatic = aromatic
 
     def GetSymbol(self):
         return self._symbol
+
+    def GetIsAromatic(self):
+        return self._aromatic
+
+
+class FakeRingInfo:
+    def __init__(self, rings):
+        self._rings = rings
+
+    def AtomRings(self):
+        return tuple(tuple(r) for r in self._rings)
 
 
 class FakeBond:
@@ -113,10 +125,12 @@ class FakeBond:
 class FakeMol:
     """Duck-typed stand-in for an RDKit Mol with a 3D conformer."""
 
-    def __init__(self, symbols, coords, bonds):
+    def __init__(self, symbols, coords, bonds, rings=None, aromatic=None):
         self._symbols = symbols
         self._conf = FakeConformer(coords)
         self._bonds = [FakeBond(*b) for b in bonds]
+        self._rings = list(rings or [])
+        self._aromatic = set(aromatic or ())
 
     def GetConformer(self):
         return self._conf
@@ -125,10 +139,33 @@ class FakeMol:
         return len(self._symbols)
 
     def GetAtomWithIdx(self, idx):
-        return FakeAtom(self._symbols[idx])
+        return FakeAtom(self._symbols[idx], aromatic=idx in self._aromatic)
 
     def GetBonds(self):
         return list(self._bonds)
+
+    def GetRingInfo(self):
+        return FakeRingInfo(self._rings)
+
+
+def make_benzene_like() -> FakeMol:
+    """Hexagonal aromatic C6 ring plus one non-aromatic substituent."""
+    import math
+
+    coords = [
+        (math.cos(math.radians(60 * i)) * 1.4,
+         math.sin(math.radians(60 * i)) * 1.4, 0.0)
+        for i in range(6)
+    ]
+    coords.append((2.9, 0.0, 0.0))
+    bonds = [(i, (i + 1) % 6, 1.5) for i in range(6)] + [(0, 6, 1.0)]
+    return FakeMol(
+        symbols=["C"] * 6 + ["Cl"],
+        coords=coords,
+        bonds=bonds,
+        rings=[(0, 1, 2, 3, 4, 5)],
+        aromatic=range(6),
+    )
 
 
 def make_ethanol_like() -> FakeMol:
