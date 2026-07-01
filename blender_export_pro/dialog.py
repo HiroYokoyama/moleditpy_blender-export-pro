@@ -9,8 +9,10 @@ Uses the hide-on-close singleton pattern so state survives while the app runs.
 import logging
 import os
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -24,6 +26,8 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -83,6 +87,10 @@ class BlenderExportDialog(QDialog):
 
         self._refresh_widgets()
         self._connect_live_updates()
+        try:
+            self._refresh_ring_table()
+        except Exception:
+            logging.exception("BlenderExportPro: initial ring table fill failed")
 
     # ------------------------------------------------------------ quick start
 
@@ -266,6 +274,46 @@ class BlenderExportDialog(QDialog):
             0.0, 1.0, 0.05,
             "Panel transparency. ~0.5 = stained-glass look, 1.0 = solid.")
         form.addRow("Panel opacity:", self.ring_opacity)
+
+        hint = QLabel(
+            "Per-ring styles — select a row to highlight that ring in the "
+            "3D preview; edit a row to style just that ring:")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+
+        self.ring_table = QTableWidget(0, 6)
+        self.ring_table.setHorizontalHeaderLabels(
+            ["Ring", "Panel", "Color", "Opacity", "Thickness", "Size"])
+        self.ring_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows)
+        self.ring_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection)
+        self.ring_table.verticalHeader().setVisible(False)
+        self.ring_table.setMinimumHeight(140)
+        self.ring_table.setToolTip(
+            "One row per detected ring. Changes here override the global "
+            "ring settings above for that ring only.")
+        self.ring_table.currentCellChanged.connect(self._on_ring_row_selected)
+        form.addRow(self.ring_table)
+
+        row = QHBoxLayout()
+        refresh_btn = QPushButton("Refresh Ring List")
+        refresh_btn.setToolTip(
+            "Re-detect rings from the current molecule (use after loading "
+            "or editing a molecule).")
+        refresh_btn.clicked.connect(self._refresh_ring_table)
+        row.addWidget(refresh_btn)
+
+        reset_ring_btn = QPushButton("Reset Selected Ring")
+        reset_ring_btn.setToolTip(
+            "Remove the per-ring override so the selected ring follows the "
+            "global settings again.")
+        reset_ring_btn.clicked.connect(self._reset_selected_ring)
+        row.addWidget(reset_ring_btn)
+        form.addRow(row)
+
+        self._ring_keys_by_row = []
+        self.ring_aromatic_only.toggled.connect(self._refresh_ring_table)
 
         self._tabs.addTab(tab, "Rings")
 
@@ -534,6 +582,126 @@ class BlenderExportDialog(QDialog):
         except Exception:
             logging.exception("BlenderExportPro: live preview refresh failed")
 
+    # ---------------------------------------------------------- ring table
+
+    def _refresh_ring_table(self, *_args):
+        """Rebuild the per-ring table from the current molecule."""
+        from .blender_codegen import extract_rings, resolve_ring_style, ring_key
+
+        table = self.ring_table
+        self._loading = True
+        try:
+            table.setRowCount(0)
+            self._ring_keys_by_row = []
+            mol = self._context.current_molecule
+            if mol is None:
+                return
+            try:
+                rings = extract_rings(
+                    mol, None, self.ring_aromatic_only.isChecked())
+            except Exception:
+                logging.exception("BlenderExportPro: ring detection failed")
+                return
+
+            table.setRowCount(len(rings))
+            for row, ring in enumerate(rings):
+                key = ring_key(ring)
+                self._ring_keys_by_row.append(key)
+                style = resolve_ring_style(self._cfg, key)
+                overridden = key in (self._cfg.ring_overrides or {})
+
+                label = QTableWidgetItem(
+                    "%d-ring [%s]%s" % (
+                        len(ring), ", ".join(str(i) for i in ring),
+                        "  *" if overridden else ""))
+                label.setFlags(label.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                label.setToolTip(
+                    "Atom indices of this ring. * = has a per-ring override.")
+                table.setItem(row, 0, label)
+
+                show = QComboBox()
+                show.addItems(("show", "hide"))
+                show.setCurrentText("show" if style["visible"] else "hide")
+                table.setCellWidget(row, 1, show)
+
+                color = QLineEdit(style["color"] or "")
+                color.setPlaceholderText("(global)")
+                color.setToolTip(
+                    "#RRGGBB for this ring only; empty = use global color.")
+                table.setCellWidget(row, 2, color)
+
+                opacity = self._dspin(0.0, 1.0, 0.05)
+                opacity.setValue(style["opacity"])
+                table.setCellWidget(row, 3, opacity)
+
+                thickness = self._dspin(0.0, 1.0, 0.02)
+                thickness.setValue(style["thickness"])
+                table.setCellWidget(row, 4, thickness)
+
+                size = self._dspin(0.1, 1.5, 0.05)
+                size.setValue(style["scale"])
+                table.setCellWidget(row, 5, size)
+
+                handler = lambda *_a, r=row: self._on_ring_cell_changed(r)
+                show.currentTextChanged.connect(handler)
+                color.editingFinished.connect(handler)
+                opacity.valueChanged.connect(handler)
+                thickness.valueChanged.connect(handler)
+                size.valueChanged.connect(handler)
+            table.resizeColumnsToContents()
+        finally:
+            self._loading = False
+
+    def _ring_row_widgets(self, row):
+        return (self.ring_table.cellWidget(row, 1),
+                self.ring_table.cellWidget(row, 2),
+                self.ring_table.cellWidget(row, 3),
+                self.ring_table.cellWidget(row, 4),
+                self.ring_table.cellWidget(row, 5))
+
+    def _on_ring_cell_changed(self, row):
+        if self._loading or row >= len(self._ring_keys_by_row):
+            return
+        show, color, opacity, thickness, size = self._ring_row_widgets(row)
+        if show is None:
+            return
+        key = self._ring_keys_by_row[row]
+        override = {
+            "visible": show.currentText() == "show",
+            "opacity": float(opacity.value()),
+            "thickness": float(thickness.value()),
+            "scale": float(size.value()),
+        }
+        text = color.text().strip()
+        if text:
+            override["color"] = text
+        if not isinstance(self._cfg.ring_overrides, dict):
+            self._cfg.ring_overrides = {}
+        self._cfg.ring_overrides[key] = override
+        item = self.ring_table.item(row, 0)
+        if item is not None and not item.text().endswith("*"):
+            item.setText(item.text() + "  *")
+        self._refresh_preview_if_active()
+
+    def _on_ring_row_selected(self, row, _col=0, _prev_row=-1, _prev_col=-1):
+        from .preview_style import set_highlighted_ring
+        if 0 <= row < len(self._ring_keys_by_row):
+            set_highlighted_ring(self._ring_keys_by_row[row])
+        else:
+            set_highlighted_ring(None)
+        self._refresh_preview_if_active()
+
+    def _reset_selected_ring(self):
+        row = self.ring_table.currentRow()
+        if not 0 <= row < len(self._ring_keys_by_row):
+            return
+        key = self._ring_keys_by_row[row]
+        if isinstance(self._cfg.ring_overrides, dict):
+            self._cfg.ring_overrides.pop(key, None)
+        self._refresh_ring_table()
+        self.ring_table.selectRow(row)
+        self._refresh_preview_if_active()
+
     # ------------------------------------------------------------- actions
 
     def _activate_preview(self):
@@ -557,6 +725,7 @@ class BlenderExportDialog(QDialog):
         path = self._presets.get(name)
         if path and sc.load_preset(self._cfg, path):
             self._refresh_widgets()
+            self._refresh_ring_table()
             self._refresh_preview_if_active()
             self._context.show_status_message(f"Preset applied: {name}", 3000)
 
@@ -580,6 +749,7 @@ class BlenderExportDialog(QDialog):
     def _reset_defaults(self):
         self._cfg.reset_defaults()
         self._refresh_widgets()
+        self._refresh_ring_table()
         self._refresh_preview_if_active()
         self._context.show_status_message("Style reset to defaults.", 3000)
 
@@ -629,6 +799,12 @@ class BlenderExportDialog(QDialog):
 
     def closeEvent(self, event: QCloseEvent):
         """Hide instead of destroying; persist the last-used config."""
+        try:
+            from .preview_style import set_highlighted_ring
+            set_highlighted_ring(None)
+            self._refresh_preview_if_active()
+        except Exception:
+            logging.exception("BlenderExportPro: failed to clear highlight")
         try:
             self._pull_config()
             sc.save_config(self._cfg)
