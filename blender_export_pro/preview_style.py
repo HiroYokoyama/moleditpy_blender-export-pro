@@ -11,10 +11,11 @@ from .blender_codegen import (
     extract_geometry,
     extract_rings,
     hex_to_rgb,
+    resolve_atom_radius,
     resolve_ring_style,
     ring_key,
 )
-from .element_data import radius_of, color_of
+from .element_data import color_of
 from .style_config import StyleConfig
 
 try:
@@ -39,12 +40,6 @@ def set_highlighted_ring(key) -> None:
 
 def get_highlighted_ring():
     return _highlighted_ring_key
-
-
-def _atom_radius(symbol: str, cfg: StyleConfig) -> float:
-    if cfg.atom_radius_mode == "uniform":
-        return max(cfg.uniform_radius, 0.01)
-    return max(radius_of(symbol) * cfg.atom_radius_scale, 0.01)
 
 
 def _atom_color(symbol: str, cfg: StyleConfig) -> tuple:
@@ -125,7 +120,7 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
 
     positions = np.array([pos for _s, pos in atoms])
     for idx, (symbol, pos) in enumerate(atoms):
-        radius = _atom_radius(symbol, cfg)
+        radius = resolve_atom_radius(cfg, symbol, idx)
         sphere = pv.Sphere(
             radius=radius,
             center=pos,

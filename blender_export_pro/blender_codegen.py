@@ -68,6 +68,40 @@ def hex_to_rgb(hex_color: str) -> tuple:
         return (0.8, 0.8, 0.8)
 
 
+def _keep_list(num_atoms, selected_indices):
+    """Original atom indices to export, in export order."""
+    if selected_indices:
+        return sorted(
+            set(int(i) for i in selected_indices if 0 <= int(i) < num_atoms))
+    return list(range(num_atoms))
+
+
+def resolve_atom_radius(cfg: StyleConfig, symbol: str, orig_index=None) -> float:
+    """Effective display radius for one atom.
+
+    Applies, in order: radius mode (RDKit vdW x scale, or uniform), the
+    hydrogen size factor, and any per-atom override ({"scale": f} or
+    {"radius": absolute}) keyed by the atom's original RDKit index.
+    """
+    if cfg.atom_radius_mode == "uniform":
+        radius = cfg.uniform_radius
+    else:
+        radius = radius_of(symbol) * cfg.atom_radius_scale
+    if symbol == "H":
+        radius *= cfg.hydrogen_scale
+    if orig_index is not None and isinstance(cfg.atom_overrides, dict):
+        override = cfg.atom_overrides.get(str(orig_index))
+        if isinstance(override, dict):
+            try:
+                if "radius" in override:
+                    radius = float(override["radius"])
+                elif "scale" in override:
+                    radius *= float(override["scale"])
+            except (TypeError, ValueError):
+                pass
+    return max(radius, 0.01)
+
+
 def extract_geometry(mol, selected_indices=None):
     """Extract (atoms, bonds) from an RDKit-like Mol via duck-typing.
 
@@ -81,10 +115,7 @@ def extract_geometry(mol, selected_indices=None):
     conf = mol.GetConformer()
     num_atoms = mol.GetNumAtoms()
 
-    if selected_indices:
-        keep = sorted(set(int(i) for i in selected_indices if 0 <= int(i) < num_atoms))
-    else:
-        keep = list(range(num_atoms))
+    keep = _keep_list(num_atoms, selected_indices)
     remap = {old: new for new, old in enumerate(keep)}
 
     atoms = []
@@ -126,10 +157,7 @@ def extract_rings(mol, selected_indices=None, aromatic_only=True,
         return []
 
     num_atoms = mol.GetNumAtoms()
-    if selected_indices:
-        keep = sorted(set(int(i) for i in selected_indices if 0 <= int(i) < num_atoms))
-    else:
-        keep = list(range(num_atoms))
+    keep = _keep_list(num_atoms, selected_indices)
     remap = {old: new for new, old in enumerate(keep)}
 
     rings = []
@@ -151,14 +179,16 @@ def extract_rings(mol, selected_indices=None, aromatic_only=True,
     return rings
 
 
-def _atom_records(atoms, cfg: StyleConfig):
-    """Per-atom (symbol, position, radius, color) records for the script."""
+def _atom_records(atoms, cfg: StyleConfig, atom_keys=None):
+    """Per-atom (symbol, position, radius, color) records for the script.
+
+    atom_keys: original RDKit indices per atom (for per-atom overrides);
+    defaults to the export position.
+    """
     records = []
-    for symbol, pos in atoms:
-        if cfg.atom_radius_mode == "uniform":
-            radius = cfg.uniform_radius
-        else:
-            radius = radius_of(symbol) * cfg.atom_radius_scale
+    for pos_idx, (symbol, pos) in enumerate(atoms):
+        orig = atom_keys[pos_idx] if atom_keys else pos_idx
+        radius = resolve_atom_radius(cfg, symbol, orig)
         if cfg.color_mode == "single":
             color = hex_to_rgb(cfg.single_color)
         else:
@@ -167,7 +197,7 @@ def _atom_records(atoms, cfg: StyleConfig):
             {
                 "symbol": symbol,
                 "pos": [round(c, 6) for c in pos],
-                "radius": round(max(radius, 0.01), 6),
+                "radius": round(radius, 6),
                 "color": [round(c, 4) for c in color],
             }
         )
@@ -226,7 +256,7 @@ def _ring_records(atoms, rings, cfg: StyleConfig, ring_keys=None):
 
 
 def generate_script(atoms, bonds, cfg: StyleConfig, rings=None,
-                    ring_keys=None) -> str:
+                    ring_keys=None, atom_keys=None) -> str:
     """Build the full bpy script text.
 
     Args:
@@ -236,13 +266,15 @@ def generate_script(atoms, bonds, cfg: StyleConfig, rings=None,
         rings: optional list of atom-index tuples to draw as panels/plates.
         ring_keys: optional per-ring override keys (original-molecule
             indices); defaults to keys derived from *rings* themselves.
+        atom_keys: optional original RDKit index per atom, for per-atom
+            radius overrides; defaults to export positions.
     """
     params = dict(MATERIAL_PRESET_PARAMS.get(
         cfg.material_preset, MATERIAL_PRESET_PARAMS["plastic"]))
     if cfg.roughness_override >= 0.0:
         params["roughness"] = min(cfg.roughness_override, 1.0)
 
-    atom_data = json.dumps(_atom_records(atoms, cfg), indent=1)
+    atom_data = json.dumps(_atom_records(atoms, cfg, atom_keys), indent=1)
     bond_data = json.dumps(_bond_records(bonds, cfg), indent=1)
     ring_data = json.dumps(_ring_records(atoms, rings, cfg, ring_keys), indent=1)
 
@@ -671,10 +703,11 @@ def generate_script_from_mol(mol, cfg: StyleConfig, selected_indices=None) -> st
     atoms, bonds = extract_geometry(mol, selected_indices)
     if not atoms:
         raise ValueError("No atoms to export.")
+    atom_keys = _keep_list(mol.GetNumAtoms(), selected_indices)
     rings, ring_keys = [], []
     if cfg.ring_style != "none":
         rings = extract_rings(mol, selected_indices, cfg.ring_aromatic_only)
         originals = extract_rings(
             mol, selected_indices, cfg.ring_aromatic_only, keep_original=True)
         ring_keys = [ring_key(r) for r in originals]
-    return generate_script(atoms, bonds, cfg, rings, ring_keys)
+    return generate_script(atoms, bonds, cfg, rings, ring_keys, atom_keys)
