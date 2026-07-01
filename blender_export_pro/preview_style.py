@@ -74,6 +74,23 @@ def _material_kwargs(cfg: StyleConfig) -> dict:
     return dict(_PREVIEW_MATERIALS.get(cfg.material_preset, default))
 
 
+def _ensure_lighting(plotter) -> None:
+    """Restore scene lighting after plotter.clear() (which drops lights).
+
+    Without this the spheres render flat/unlit ("like planes"). We reset to a
+    deterministic 3-point light kit so the look is stable across redraws and
+    independent of whatever the host had configured.
+    """
+    try:
+        plotter.remove_all_lights()
+    except Exception:
+        logging.debug("BlenderExportPro: remove_all_lights failed", exc_info=True)
+    try:
+        plotter.enable_lightkit()
+    except Exception:
+        logging.debug("BlenderExportPro: enable_lightkit failed", exc_info=True)
+
+
 def _displace(mesh, cfg: StyleConfig, rng) -> None:
     """Cheap noise displacement along normals to mimic the Displace modifier."""
     if cfg.deformation_noise <= 0.0:
@@ -117,6 +134,7 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
         plotter.clear()
     except Exception:
         logging.debug("BlenderExportPro: plotter.clear failed", exc_info=True)
+    _ensure_lighting(plotter)
 
     positions = np.array([pos for _s, pos in atoms])
     for idx, (symbol, pos) in enumerate(atoms):

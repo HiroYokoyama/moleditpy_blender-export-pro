@@ -76,6 +76,17 @@ def test_preview_material_kwargs_never_collide_with_add_mesh_args():
         assert not reserved & set(kwargs), (preset, kwargs)
 
 
+def test_ensure_lighting_resets_lightkit():
+    """After clear() the preview must restore lights (else flat 'planes')."""
+    from unittest.mock import MagicMock
+    from blender_export_pro import preview_style
+
+    plotter = MagicMock()
+    preview_style._ensure_lighting(plotter)
+    plotter.remove_all_lights.assert_called_once()
+    plotter.enable_lightkit.assert_called_once()
+
+
 def test_highlighted_ring_setter():
     from blender_export_pro import preview_style
 
