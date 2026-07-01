@@ -7,7 +7,13 @@ colors, jitter and noise displacement, so users can iterate before exporting.
 
 import logging
 
-from .blender_codegen import extract_geometry, extract_rings, hex_to_rgb
+from .blender_codegen import (
+    extract_geometry,
+    extract_rings,
+    hex_to_rgb,
+    resolve_ring_style,
+    ring_key,
+)
 from .element_data import radius_of, color_of
 from .style_config import StyleConfig
 
@@ -17,6 +23,22 @@ try:
 except ImportError:  # headless / test environment
     np = None
     pv = None
+
+# Ring currently highlighted in the preview (set from the dialog's ring
+# table). Stored as a ring_key() string, or None for no highlight.
+_highlighted_ring_key = None
+
+HIGHLIGHT_COLOR = (1.0, 0.35, 0.1)
+
+
+def set_highlighted_ring(key) -> None:
+    """Select which ring gets an outline highlight on the next redraw."""
+    global _highlighted_ring_key
+    _highlighted_ring_key = key
+
+
+def get_highlighted_ring():
+    return _highlighted_ring_key
 
 
 def _atom_radius(symbol: str, cfg: StyleConfig) -> float:
@@ -181,7 +203,11 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
 
 
 def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
-    """Draw rings (e.g. benzene) as translucent filled polygon panels."""
+    """Draw rings as filled polygon panels, honoring per-ring overrides.
+
+    The ring selected in the dialog's ring table (set_highlighted_ring)
+    additionally gets a bright outline tube so it is easy to spot.
+    """
     try:
         rings = extract_rings(mol, None, cfg.ring_aromatic_only)
     except Exception:
@@ -189,13 +215,19 @@ def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
         return
 
     for idx, ring in enumerate(rings):
+        key = ring_key(ring)
+        style = resolve_ring_style(cfg, key)
+        highlighted = key == _highlighted_ring_key
+
         pts = positions[list(ring)].astype(float)
         center = pts.mean(axis=0)
-        pts = center + (pts - center) * cfg.ring_scale
+        panel_pts = center + (pts - center) * style["scale"]
         n_pts = len(pts)
         face = np.hstack([[n_pts], np.arange(n_pts)])
 
-        if cfg.ring_color_mode == "match_atoms":
+        if style["color"]:
+            color = hex_to_rgb(style["color"])
+        elif cfg.ring_color_mode == "match_atoms":
             member_colors = [_atom_color(atoms[i][0], cfg) for i in ring]
             color = tuple(sum(c[k] for c in member_colors) / n_pts
                           for k in range(3))
@@ -203,19 +235,44 @@ def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
             color = hex_to_rgb(cfg.ring_color)
 
         try:
-            panel = pv.PolyData(pts, faces=face)
-            if cfg.ring_thickness > 0.0:
-                normal = np.cross(pts[1] - pts[0], pts[2] - pts[0])
-                norm_len = np.linalg.norm(normal)
-                if norm_len > 1e-9:
-                    normal = normal / norm_len * cfg.ring_thickness
-                    panel.points = panel.points - normal / 2.0
-                    panel = panel.extrude(normal, capping=True)
-            plotter.add_mesh(
-                panel,
-                color=color,
-                opacity=cfg.ring_opacity,
-                name=f"bep_ring_{idx}",
-            )
+            if style["visible"]:
+                panel = pv.PolyData(panel_pts, faces=face)
+                if style["thickness"] > 0.0:
+                    normal = np.cross(
+                        panel_pts[1] - panel_pts[0], panel_pts[2] - panel_pts[0])
+                    norm_len = np.linalg.norm(normal)
+                    if norm_len > 1e-9:
+                        normal = normal / norm_len * style["thickness"]
+                        panel.points = panel.points - normal / 2.0
+                        panel = panel.extrude(normal, capping=True)
+                plotter.add_mesh(
+                    panel,
+                    color=color,
+                    opacity=style["opacity"],
+                    name=f"bep_ring_{idx}",
+                )
+            if highlighted:
+                _draw_ring_highlight(plotter, idx, pts, cfg)
         except Exception:
             logging.exception("BlenderExportPro: ring panel preview failed")
+
+
+def _draw_ring_highlight(plotter, idx, pts, cfg: StyleConfig) -> None:
+    """Bright outline tube around the ring perimeter (selection marker)."""
+    n_pts = len(pts)
+    loop = np.vstack([pts, pts[:1]])
+    lines = np.hstack([[n_pts + 1], np.arange(n_pts + 1)])
+    outline = pv.PolyData(loop)
+    outline.lines = lines
+    radius = max(cfg.bond_radius * 1.4, 0.08)
+    try:
+        outline = outline.tube(radius=radius)
+    except Exception:
+        logging.debug("BlenderExportPro: tube() failed, using lines",
+                      exc_info=True)
+    plotter.add_mesh(
+        outline,
+        color=HIGHLIGHT_COLOR,
+        opacity=1.0,
+        name=f"bep_ring_highlight_{idx}",
+    )
