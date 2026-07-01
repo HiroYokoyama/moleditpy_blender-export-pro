@@ -20,6 +20,8 @@ MATERIAL_PRESETS = (
     "ceramic", "chalk", "neon", "ice", "stone", "iridescent",
 )
 SCENE_PRESETS = ("none", "studio", "dark")
+RING_STYLES = ("none", "panel")
+RING_COLOR_MODES = ("custom", "match_atoms")
 BLENDER_TARGETS = ("4.x", "3.x", "2.8x")
 
 
@@ -41,6 +43,15 @@ class StyleConfig:
     bond_segments: int = 24
     show_multiple_bonds: bool = True
     multi_bond_offset: float = 0.18
+
+    # Rings (benzene etc. drawn as filled polygon panels/plates)
+    ring_style: str = "none"          # "none" | "panel"
+    ring_aromatic_only: bool = True   # False = panel every small ring
+    ring_scale: float = 0.9           # inset of panel corners toward center
+    ring_thickness: float = 0.06      # plate thickness (0 = flat sheet)
+    ring_color_mode: str = "custom"   # "custom" | "match_atoms"
+    ring_color: str = "#E8D44D"
+    ring_opacity: float = 0.55
 
     # Deformation
     deformation_noise: float = 0.0   # Displace modifier strength
