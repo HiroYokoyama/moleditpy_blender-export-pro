@@ -356,15 +356,28 @@ class BlenderExportDialog(QDialog):
             "Panel transparency. ~0.5 = stained-glass look, 1.0 = solid.")
         form.addRow("Panel opacity:", self.ring_opacity)
 
+        self.ring_hide_atoms = QCheckBox("Hide atoms of paneled rings")
+        self.ring_hide_atoms.setToolTip(
+            "Show only the ring plate, not the ball atoms — a clean "
+            "aromatic-ring figure look. Per-ring overrides in the table "
+            "below take precedence.")
+        form.addRow(self.ring_hide_atoms)
+
+        self.ring_hide_bonds = QCheckBox("Also hide the ring's internal bonds")
+        self.ring_hide_bonds.setToolTip(
+            "Additionally hide the bonds inside paneled rings (substituent "
+            "bonds to the ring are kept).")
+        form.addRow(self.ring_hide_bonds)
+
         hint = QLabel(
             "Per-ring styles — select a row to highlight that ring in the "
             "3D preview; edit a row to style just that ring:")
         hint.setWordWrap(True)
         form.addRow(hint)
 
-        self.ring_table = QTableWidget(0, 6)
+        self.ring_table = QTableWidget(0, 7)
         self.ring_table.setHorizontalHeaderLabels(
-            ["Ring", "Panel", "Color", "Opacity", "Thickness", "Size"])
+            ["Ring", "Panel", "Atoms", "Color", "Opacity", "Thickness", "Size"])
         self.ring_table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.ring_table.setSelectionMode(
@@ -395,6 +408,7 @@ class BlenderExportDialog(QDialog):
 
         self._ring_keys_by_row = []
         self.ring_aromatic_only.toggled.connect(self._refresh_ring_table)
+        self.ring_hide_atoms.toggled.connect(self._refresh_ring_table)
 
         self._tabs.addTab(tab, "Rings")
 
@@ -729,6 +743,8 @@ class BlenderExportDialog(QDialog):
         ("ring_color_mode", "combo"),
         ("ring_color", "text"),
         ("ring_opacity", "float"),
+        ("ring_hide_atoms", "bool"),
+        ("ring_hide_bonds", "bool"),
         ("deformation_noise", "float"),
         ("deformation_noise_scale", "float"),
         ("deformation_bend", "float"),
@@ -1000,28 +1016,38 @@ class BlenderExportDialog(QDialog):
                 show = QComboBox()
                 show.addItems(("show", "hide"))
                 show.setCurrentText("show" if style["visible"] else "hide")
+                show.setToolTip("Show or hide this ring's panel.")
                 table.setCellWidget(row, 1, show)
+
+                atoms = QComboBox()
+                atoms.addItems(("show", "hide"))
+                atoms.setCurrentText("hide" if style["hide_atoms"] else "show")
+                atoms.setToolTip(
+                    "Show or hide this ring's atoms (and internal bonds) so "
+                    "only the plate remains.")
+                table.setCellWidget(row, 2, atoms)
 
                 color = QLineEdit(style["color"] or "")
                 color.setPlaceholderText("(global)")
                 color.setToolTip(
                     "#RRGGBB for this ring only; empty = use global color.")
-                table.setCellWidget(row, 2, color)
+                table.setCellWidget(row, 3, color)
 
                 opacity = self._dspin(0.0, 1.0, 0.05)
                 opacity.setValue(style["opacity"])
-                table.setCellWidget(row, 3, opacity)
+                table.setCellWidget(row, 4, opacity)
 
                 thickness = self._dspin(0.0, 1.0, 0.02)
                 thickness.setValue(style["thickness"])
-                table.setCellWidget(row, 4, thickness)
+                table.setCellWidget(row, 5, thickness)
 
                 size = self._dspin(0.1, 1.5, 0.05)
                 size.setValue(style["scale"])
-                table.setCellWidget(row, 5, size)
+                table.setCellWidget(row, 6, size)
 
                 handler = lambda *_a, r=row: self._on_ring_cell_changed(r)
                 show.currentTextChanged.connect(handler)
+                atoms.currentTextChanged.connect(handler)
                 color.editingFinished.connect(handler)
                 opacity.valueChanged.connect(handler)
                 thickness.valueChanged.connect(handler)
@@ -1031,21 +1057,18 @@ class BlenderExportDialog(QDialog):
             self._loading = False
 
     def _ring_row_widgets(self, row):
-        return (self.ring_table.cellWidget(row, 1),
-                self.ring_table.cellWidget(row, 2),
-                self.ring_table.cellWidget(row, 3),
-                self.ring_table.cellWidget(row, 4),
-                self.ring_table.cellWidget(row, 5))
+        return tuple(self.ring_table.cellWidget(row, c) for c in range(1, 7))
 
     def _on_ring_cell_changed(self, row):
         if self._loading or row >= len(self._ring_keys_by_row):
             return
-        show, color, opacity, thickness, size = self._ring_row_widgets(row)
+        show, atoms, color, opacity, thickness, size = self._ring_row_widgets(row)
         if show is None:
             return
         key = self._ring_keys_by_row[row]
         override = {
             "visible": show.currentText() == "show",
+            "hide_atoms": atoms.currentText() == "hide",
             "opacity": float(opacity.value()),
             "thickness": float(thickness.value()),
             "scale": float(size.value()),
