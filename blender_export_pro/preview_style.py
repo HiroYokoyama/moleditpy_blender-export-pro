@@ -74,7 +74,11 @@ _PREVIEW_MATERIALS = {
 
 def _material_kwargs(cfg: StyleConfig) -> dict:
     default = {"specular": 0.5}
-    return dict(_PREVIEW_MATERIALS.get(cfg.material_preset, default))
+    res = dict(_PREVIEW_MATERIALS.get(cfg.material_preset, default))
+    res.pop("color", None)
+    res.pop("name", None)
+    res.pop("smooth_shading", None)
+    return res
 
 
 def _ensure_lighting(plotter) -> None:
