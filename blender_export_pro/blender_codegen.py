@@ -159,10 +159,14 @@ def noise_displacement(point, strength, scale) -> float:
         return 0.0
     k = 2.0 / max(float(scale), 1e-3)
     x, y, z = (float(point[0]) * k, float(point[1]) * k, float(point[2]) * k)
-    value = (math.sin(x * 1.7 + y * 0.8 + 2.4)
-             + math.sin(y * 1.3 + z * 1.1 + 4.1)
-             + math.sin(z * 0.9 + x * 1.5 + 1.2)) / 3.0
-    return value * float(strength)
+    # two octaves: broad blobs plus fine detail an atom-sized surface shows
+    coarse = (math.sin(x * 1.7 + y * 0.8 + 2.4)
+              + math.sin(y * 1.3 + z * 1.1 + 4.1)
+              + math.sin(z * 0.9 + x * 1.5 + 1.2)) / 3.0
+    fine = (math.sin(x * 6.1 + z * 4.7 + 0.7)
+            + math.sin(y * 5.3 + x * 4.3 + 3.3)
+            + math.sin(z * 6.7 + y * 5.9 + 5.1)) / 3.0
+    return (coarse + 0.7 * fine) / 1.7 * float(strength)
 
 
 GRADIENT_BOND_PIECES = 4
