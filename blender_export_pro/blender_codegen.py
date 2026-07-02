@@ -206,7 +206,7 @@ def extract_geometry(mol, selected_indices=None):
 
     Returns:
         atoms: list of (symbol, (x, y, z)) in export order.
-        bonds: list of (i, j, order) with indices into *atoms*.
+        bonds: list of (i, j, order, aromatic) with indices into *atoms*.
 
     If *selected_indices* is a non-empty collection, only those atoms (and
     bonds fully inside the selection) are exported.
@@ -228,11 +228,48 @@ def extract_geometry(mol, selected_indices=None):
         i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
         if i in remap and j in remap:
             try:
-                order = int(round(bond.GetBondTypeAsDouble()))
+                raw = float(bond.GetBondTypeAsDouble())
             except (TypeError, ValueError):
-                order = 1
-            bonds.append((remap[i], remap[j], max(1, min(order, 3))))
+                raw = 1.0
+            try:
+                aromatic = bool(bond.GetIsAromatic())
+            except AttributeError:
+                aromatic = abs(raw - 1.5) < 0.25
+            order = max(1, min(int(round(raw)), 3))
+            bonds.append((remap[i], remap[j], order, aromatic))
     return atoms, bonds
+
+
+def resolve_aromatic_display(cfg: StyleConfig, order, aromatic):
+    """(effective order, dashed_second) after the aromatic bond style.
+
+    "double" draws aromatic bonds like ordinary double bonds; "single"
+    collapses them to one cylinder; "dashed" draws a solid main line plus
+    a dashed second line (the classic aromatic depiction).
+    """
+    if not cfg.show_multiple_bonds:
+        return 1, False
+    if not aromatic:
+        return order, False
+    style = cfg.aromatic_bond_style
+    if style == "single":
+        return 1, False
+    if style == "dashed":
+        return 2, True
+    return order, False
+
+
+DASH_COUNT = 5
+DASH_DUTY = 0.6
+
+
+def dash_bounds(count=DASH_COUNT, duty=DASH_DUTY):
+    """[(t0, t1)] fractions along a bond for a dashed line's segments."""
+    out = []
+    for d in range(count):
+        t0 = (d + (1.0 - duty) / 2.0) / count
+        out.append((t0, t0 + duty / count))
+    return out
 
 
 def ring_key(indices) -> str:
@@ -330,7 +367,9 @@ def _bond_records(bonds, cfg: StyleConfig, hide_bond_rings=None,
     endpoints = hidden_endpoints or set()
     hidden_keys = hidden_bond_keys(cfg)
     records = []
-    for i, j, order in bonds:
+    for bond in bonds:
+        i, j, order = bond[0], bond[1], bond[2]
+        aromatic = bool(bond[3]) if len(bond) > 3 else False
         orig_i = atom_keys[i] if atom_keys else i
         orig_j = atom_keys[j] if atom_keys else j
         visible = (not cfg.hide_all_bonds
@@ -338,9 +377,11 @@ def _bond_records(bonds, cfg: StyleConfig, hide_bond_rings=None,
                    and bond_key(orig_i, orig_j) not in hidden_keys
                    and not any(i in members and j in members
                                for members in hide_rings))
+        order, dashed = resolve_aromatic_display(cfg, order, aromatic)
         records.append({
             "a": i, "b": j,
-            "order": order if cfg.show_multiple_bonds else 1,
+            "order": order,
+            "dashed": dashed,
             "visible": visible,
         })
     return records
@@ -796,6 +837,15 @@ def create_bond_segment(coll, name, start, end, radius, color,
     return obj
 
 
+def _dash_bounds(count=5, duty=0.6):
+    """[(t0, t1)] fractions along a bond for a dashed line's segments."""
+    out = []
+    for d in range(count):
+        t0 = (d + (1.0 - duty) / 2.0) / count
+        out.append((t0, t0 + duty / count))
+    return out
+
+
 def create_bond(coll, index, rec):
     a = ATOMS[rec["a"]]
     b = ATOMS[rec["b"]]
@@ -821,9 +871,25 @@ def create_bond(coll, index, rec):
     perp = _perpendicular(direction)
     radius = BOND_RADIUS if order <= 1 else BOND_RADIUS * MULTI_BOND_SCALE
     mid = (start + end) / 2.0
+    axis = end - start
     for k, off in enumerate(offsets):
         shift = perp * off
         name = "Bond_%03d_%d" % (index, k)
+        if rec.get("dashed") and k == 1:
+            # dashed second line: the classic aromatic-bond depiction
+            for di, (t0, t1) in enumerate(_dash_bounds()):
+                tm = (t0 + t1) / 2.0
+                if BOND_COLOR_MODE == "gradient":
+                    c = [color_a[m] + (color_b[m] - color_a[m]) * tm
+                         for m in range(3)]
+                elif BOND_COLOR_MODE == "split":
+                    c = color_a if tm < 0.5 else color_b
+                else:
+                    c = color_a
+                create_bond_segment(coll, "%s_d%d" % (name, di),
+                                    start + axis * t0 + shift,
+                                    start + axis * t1 + shift, radius, c)
+            continue
         if BOND_COLOR_MODE == "split" and color_a != color_b:
             create_bond_segment(coll, name + "a", start + shift, mid + shift,
                                 radius, color_a)

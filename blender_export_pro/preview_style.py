@@ -11,6 +11,7 @@ from .blender_codegen import (
     _custom_light_list,
     bond_key,
     bond_piecewise,
+    dash_bounds,
     extract_geometry,
     extract_rings,
     hex_to_rgb,
@@ -21,6 +22,7 @@ from .blender_codegen import (
     resolve_atom_radius,
     resolve_ring_style,
     ring_hidden_geometry,
+    resolve_aromatic_display,
     ring_key,
     ring_outlines_enabled,
     ring_panels_enabled,
@@ -252,23 +254,26 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
     hidden_bonds = hidden_bond_keys(cfg)
     if cfg.hide_all_bonds:
         bonds = []
-    for idx, (i, j, order) in enumerate(bonds):
+    for idx, bond in enumerate(bonds):
+        i, j, order = bond[0], bond[1], bond[2]
+        aromatic = bool(bond[3]) if len(bond) > 3 else False
         if i in hidden_endpoints or j in hidden_endpoints:
             continue
         if bond_key(i, j) in hidden_bonds:
             continue
         if any(i in members and j in members for members in hide_bond_rings):
             continue
+        order, dashed = resolve_aromatic_display(cfg, order, aromatic)
         start, end = positions[i], positions[j]
         direction = end - start
         length = float(np.linalg.norm(direction))
         if length < 1e-6:
             continue
         direction = direction / length
-        pieces = bond_piecewise(
-            cfg, tuple(start), tuple(end),
-            _atom_color(atoms[i][0], cfg, i),
-            _atom_color(atoms[j][0], cfg, j))
+        color_a = _atom_color(atoms[i][0], cfg, i)
+        color_b = _atom_color(atoms[j][0], cfg, j)
+        pieces = bond_piecewise(cfg, tuple(start), tuple(end),
+                                color_a, color_b)
 
         if order > 1 and cfg.show_multiple_bonds:
             ref = np.array([0.0, 0.0, 1.0])
@@ -288,6 +293,36 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
 
         for k, off in enumerate(offsets):
             shift = perp * off
+            if dashed and k == 1:
+                # dashed second line for aromatic bonds
+                axis = end - start
+                for di, (t0, t1) in enumerate(dash_bounds()):
+                    tm = (t0 + t1) / 2.0
+                    if cfg.bond_color_mode == "gradient":
+                        c = tuple(color_a[m] + (color_b[m] - color_a[m]) * tm
+                                  for m in range(3))
+                    elif cfg.bond_color_mode == "split":
+                        c = color_a if tm < 0.5 else color_b
+                    else:
+                        c = pieces[0][2]
+                    dash_start = start + axis * t0 + shift
+                    dash_end = start + axis * t1 + shift
+                    cyl = pv.Cylinder(
+                        center=(dash_start + dash_end) / 2.0,
+                        direction=direction,
+                        radius=radius,
+                        height=float(np.linalg.norm(dash_end - dash_start)),
+                        resolution=max(6, cfg.bond_segments),
+                    )
+                    _displace(cyl, cfg, rng)
+                    plotter.add_mesh(
+                        cyl,
+                        color=c,
+                        name=f"bep_bond_{idx}_{k}_dash{di}",
+                        smooth_shading=cfg.shade_smooth,
+                        **mat,
+                    )
+                continue
             for p, (seg_start, seg_end, seg_color) in enumerate(pieces):
                 seg_start = np.asarray(seg_start) + shift
                 seg_end = np.asarray(seg_end) + shift

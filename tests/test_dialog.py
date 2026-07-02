@@ -296,6 +296,25 @@ def test_preview_hidden_bond_not_drawn(monkeypatch):
     assert atoms == 7
 
 
+def test_preview_aromatic_bond_styles(monkeypatch):
+    """single: one cylinder per aromatic bond; dashed: solid + 5 dashes."""
+    from blender_export_pro.style_config import StyleConfig
+
+    _fake_pv, plotter = _draw_preview(
+        monkeypatch, StyleConfig(aromatic_bond_style="single"))
+    names = _added_mesh_names(plotter)
+    assert sum(1 for n in names if n and n.startswith("bep_bond_")) == 7
+
+    _fake_pv, plotter = _draw_preview(
+        monkeypatch, StyleConfig(aromatic_bond_style="dashed"))
+    names = _added_mesh_names(plotter)
+    dashes = [n for n in names if n and "_dash" in n]
+    solids = [n for n in names
+              if n and n.startswith("bep_bond_") and "_dash" not in n]
+    assert len(dashes) == 6 * 5          # 5 dashes per aromatic bond
+    assert len(solids) == 6 + 1          # solid main lines + the C-Cl bond
+
+
 def test_preview_hide_all_bonds(monkeypatch):
     from blender_export_pro.style_config import StyleConfig
 

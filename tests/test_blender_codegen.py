@@ -30,14 +30,14 @@ def test_hex_to_rgb_fallback(bad):
 def test_extract_geometry_full():
     atoms, bonds = bc.extract_geometry(make_ethanol_like())
     assert [s for s, _p in atoms] == ["C", "C", "O", "H"]
-    assert bonds == [(0, 1, 1), (1, 2, 2), (0, 3, 1)]
+    assert bonds == [(0, 1, 1, False), (1, 2, 2, False), (0, 3, 1, False)]
 
 
 def test_extract_geometry_selection_remaps_indices():
     atoms, bonds = bc.extract_geometry(make_ethanol_like(), selected_indices=[1, 2])
     assert [s for s, _p in atoms] == ["C", "O"]
     # only the C=O bond survives, remapped to local indices
-    assert bonds == [(0, 1, 2)]
+    assert bonds == [(0, 1, 2, False)]
 
 
 def test_extract_geometry_selection_out_of_range_ignored():
@@ -50,13 +50,42 @@ def test_extract_geometry_selection_out_of_range_ignored():
 def test_extract_geometry_clamps_bond_order():
     mol = FakeMol(["C", "C"], [(0, 0, 0), (1, 0, 0)], [(0, 1, 9.0)])
     _atoms, bonds = bc.extract_geometry(mol)
-    assert bonds == [(0, 1, 3)]
+    assert bonds == [(0, 1, 3, False)]
 
 
-def test_extract_geometry_aromatic_order_rounds():
+def test_extract_geometry_flags_aromatic_bonds():
     mol = FakeMol(["C", "C"], [(0, 0, 0), (1, 0, 0)], [(0, 1, 1.5)])
     _atoms, bonds = bc.extract_geometry(mol)
-    assert bonds[0][2] == 2
+    assert bonds == [(0, 1, 2, True)]   # order rounds up, aromatic flagged
+
+
+def test_resolve_aromatic_display():
+    order = lambda cfg: bc.resolve_aromatic_display(cfg, 2, True)
+    assert order(StyleConfig(aromatic_bond_style="double")) == (2, False)
+    assert order(StyleConfig(aromatic_bond_style="single")) == (1, False)
+    assert order(StyleConfig(aromatic_bond_style="dashed")) == (2, True)
+    # non-aromatic bonds are untouched by the setting
+    assert bc.resolve_aromatic_display(
+        StyleConfig(aromatic_bond_style="single"), 2, False) == (2, False)
+    # multiple-bond rendering off collapses everything to a single solid
+    assert bc.resolve_aromatic_display(
+        StyleConfig(show_multiple_bonds=False,
+                    aromatic_bond_style="dashed"), 2, True) == (1, False)
+
+
+def test_aromatic_bond_style_scripts():
+    mol = make_benzene_like()
+    single = bc.generate_script_from_mol(
+        mol, StyleConfig(aromatic_bond_style="single"))
+    compile(single, "<generated>", "exec")
+    bonds_block = single.split("BONDS =")[1].split("RINGS")[0]
+    assert "'order': 2" not in bonds_block
+
+    dashed = bc.generate_script_from_mol(
+        mol, StyleConfig(aromatic_bond_style="dashed"))
+    compile(dashed, "<generated>", "exec")
+    assert "_dash_bounds" in dashed
+    assert "'dashed': True" in dashed
 
 
 # -------------------------------------------------------- generate_script

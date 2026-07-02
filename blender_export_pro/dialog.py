@@ -38,6 +38,7 @@ from PyQt6.QtWidgets import (
 from . import style_config as sc
 from .blender_codegen import generate_script_from_mol
 from .style_config import (
+    AROMATIC_BOND_STYLES,
     ATOM_RADIUS_MODES,
     ATOM_SHAPES,
     BACKGROUND_MODES,
@@ -480,6 +481,15 @@ class BlenderExportDialog(QDialog):
         self.multi_bond_offset = self._dspin(
             0.02, 1.0, 0.02, "Spacing between the parallel cylinders.")
         form.addRow("Multi-bond offset (Å):", self.multi_bond_offset)
+
+        self.aromatic_bond_style = QComboBox()
+        self.aromatic_bond_style.addItems(AROMATIC_BOND_STYLES)
+        self.aromatic_bond_style.setToolTip(
+            "How aromatic bonds (benzene etc.) are drawn — double: two "
+            "parallel cylinders like a double bond · single: one cylinder "
+            "· dashed: solid line plus a dashed second line (the classic "
+            "aromatic depiction).")
+        form.addRow("Aromatic bonds:", self.aromatic_bond_style)
 
         self.multi_bond_scale = self._dspin(
             0.1, 2.0, 0.05,
@@ -1065,6 +1075,7 @@ class BlenderExportDialog(QDialog):
         ("show_multiple_bonds", "bool"),
         ("multi_bond_offset", "float"),
         ("multi_bond_scale", "float"),
+        ("aromatic_bond_style", "combo"),
         ("bond_color_mode", "combo"),
         ("bond_color", "text"),
         ("ring_style", "combo"),

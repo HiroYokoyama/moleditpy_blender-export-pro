@@ -23,6 +23,7 @@ SCENE_PRESETS = ("none", "studio", "dark")
 BACKGROUND_MODES = ("preset", "color", "hdri", "transparent")
 RENDER_ENGINES = ("keep", "cycles", "eevee")
 BOND_COLOR_MODES = ("atoms", "gradient", "split", "single")
+AROMATIC_BOND_STYLES = ("double", "single", "dashed")
 LIGHT_TYPES = ("AREA", "POINT", "SUN", "SPOT")
 
 
@@ -78,6 +79,9 @@ class StyleConfig:
     bond_segments: int = 24
     show_multiple_bonds: bool = True
     multi_bond_offset: float = 0.18
+    # How aromatic bonds (benzene etc.) are drawn: like a double bond,
+    # collapsed to a single cylinder, or solid line + dashed second line.
+    aromatic_bond_style: str = "double"   # double | single | dashed
     bond_color_mode: str = "atoms"   # atoms | gradient | split | single
     bond_color: str = "#808080"      # used when bond_color_mode == "single"
     # Radius factor on each cylinder of a double/triple (e.g. aromatic ring)
