@@ -104,6 +104,11 @@ class StyleConfig:
     add_ground_plane: bool = True
     add_camera: bool = True
     turntable_frames: int = 0        # 0 disables the turntable animation
+    # Key-light placement (spherical around the molecule center) and power.
+    key_light_azimuth: float = -45.0   # degrees around vertical axis
+    key_light_elevation: float = 45.0  # degrees above the horizon
+    key_light_strength: float = 1.0    # multiplier on the preset energy
+    light_distance_scale: float = 2.5  # light distance = this x molecule size
 
     # Background & render
     background_mode: str = "preset"  # preset | color | hdri | transparent

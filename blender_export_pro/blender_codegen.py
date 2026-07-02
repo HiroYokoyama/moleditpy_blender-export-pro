@@ -430,6 +430,10 @@ SCENE_PRESET = {cfg.scene_preset!r}
 ADD_GROUND = {cfg.add_ground_plane!r}
 ADD_CAMERA = {cfg.add_camera!r}
 TURNTABLE_FRAMES = {int(cfg.turntable_frames)!r}
+KEY_LIGHT_AZIMUTH = {float(cfg.key_light_azimuth)!r}
+KEY_LIGHT_ELEVATION = {float(cfg.key_light_elevation)!r}
+KEY_LIGHT_STRENGTH = {float(cfg.key_light_strength)!r}
+LIGHT_DISTANCE_SCALE = {float(cfg.light_distance_scale)!r}
 BG_MODE = {cfg.background_mode!r}
 BG_COLOR = {json.dumps([round(c, 4) for c in hex_to_rgb(cfg.background_color)])}
 HDRI_PATH = {cfg.hdri_path!r}
@@ -734,11 +738,22 @@ def setup_scene(coll):
         bpy.context.scene.collection.objects.link(obj)
         return obj
 
-    dist = size * 2.5
-    key_energy = 1000.0 if SCENE_PRESET == "studio" else 400.0
-    add_light("BEP_Key", "AREA", center + Vector((dist, -dist, dist)), key_energy)
-    add_light("BEP_Fill", "AREA", center + Vector((-dist, -dist * 0.5, dist * 0.5)), key_energy * 0.3)
-    add_light("BEP_Rim", "AREA", center + Vector((0.0, dist, dist * 0.7)), key_energy * 0.5)
+    dist = size * LIGHT_DISTANCE_SCALE
+    key_energy = (1000.0 if SCENE_PRESET == "studio" else 400.0) * KEY_LIGHT_STRENGTH
+
+    # Key light placed on a sphere around the center from azimuth/elevation.
+    az = math.radians(KEY_LIGHT_AZIMUTH)
+    el = math.radians(KEY_LIGHT_ELEVATION)
+    key_dir = Vector((math.cos(el) * math.sin(az),
+                      -math.cos(el) * math.cos(az),
+                      math.sin(el)))
+    add_light("BEP_Key", "AREA", center + key_dir * dist, key_energy)
+    # Fill from the opposite azimuth, rim from behind — relative to the key.
+    fill_dir = Vector((-key_dir.x, -key_dir.y, abs(key_dir.z) * 0.5 + 0.2))
+    add_light("BEP_Fill", "AREA", center + fill_dir * dist, key_energy * 0.3)
+    add_light("BEP_Rim", "AREA",
+              center + Vector((-key_dir.x, key_dir.y, key_dir.z)) * dist,
+              key_energy * 0.5)
 
     if ADD_GROUND:
         zmin = min(a["pos"][2] - a["radius"] for a in ATOMS)
