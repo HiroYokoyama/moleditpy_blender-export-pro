@@ -37,7 +37,7 @@ def initialize(context) -> None:
     _style = load_config()
 
     context.add_menu_action(
-        "Visuals/Blender Export Pro…", lambda: open_panel(context))
+        "Extensions/Blender Export Pro…", lambda: open_panel(context))
     context.register_3d_style(STYLE_NAME, _draw_preview)
     context.add_export_action(
         "Export to Blender Script (.py)…", lambda: quick_export(context))

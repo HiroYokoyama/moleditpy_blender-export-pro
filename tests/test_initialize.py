@@ -43,7 +43,7 @@ def test_initialize_registers_everything():
     plugin.initialize(ctx)
 
     path, _cb = ctx.add_menu_action.call_args[0]
-    assert path == "Visuals/Blender Export Pro…"
+    assert path == "Extensions/Blender Export Pro…"
 
     style_name, style_cb = ctx.register_3d_style.call_args[0]
     assert style_name == plugin.STYLE_NAME

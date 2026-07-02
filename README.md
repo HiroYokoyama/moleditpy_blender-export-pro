@@ -12,7 +12,7 @@ the machine running MoleditPy.
 
 - **Live preview drawing style** — registers `Blender Export Pro (Preview)` in
   the 3D style list so you can iterate on the look inside MoleditPy (PyVista).
-- **Tabbed config panel** (`Visuals > Blender Export Pro…`): Presets, Atoms,
+- **Tabbed config panel** (`Extensions > Blender Export Pro…`): Presets, Atoms,
   Bonds, Deformation, Material, Scene, Export.
 - **34 bundled presets**: Classic Ball-and-Stick, Space-Filling CPK, Cute
   Cartoon, Toon Comic, Low-Poly Toy, Paper Origami, Glass Sculpture, Ice
