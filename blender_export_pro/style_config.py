@@ -40,6 +40,7 @@ class StyleConfig:
     atom_radius_mode: str = "cpk"
     atom_radius_scale: float = 0.3   # x RDKit vdW radius; 0.3 = main app look
     uniform_radius: float = 0.35
+    hide_hydrogens: bool = False     # omit all H atoms and their bonds
     hydrogen_scale: float = 1.0      # extra factor on H atoms (0.5 = half size)
     atom_jitter: float = 0.0  # per-atom squash/stretch randomness (0..1)
     # Per-atom radius overrides, keyed by the atom's RDKit index as a string

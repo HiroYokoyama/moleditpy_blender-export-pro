@@ -14,9 +14,13 @@ import struct
 
 from .blender_codegen import (
     extract_geometry,
+    extract_rings,
+    hidden_hydrogen_indices,
     resolve_atom_color,
     resolve_atom_radius,
     resolve_bond_color,
+    ring_hidden_geometry,
+    ring_key,
 )
 from .style_config import StyleConfig
 
@@ -153,8 +157,13 @@ def _oriented_transform(start, end, radius):
     return pos, nrm, length
 
 
-def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None):
-    """Merge all geometry into {color_hexkey: (_ColorGroup, rgb)}."""
+def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
+                       rings=None, ring_keys=None):
+    """Merge all geometry into {color_hexkey: (_ColorGroup, rgb)}.
+
+    Honors hidden hydrogens and ring atom/bond hiding so the exported mesh
+    matches the preview and the Blender script.
+    """
     sphere = _unit_sphere()
     cylinder = _unit_cylinder()
     groups = {}
@@ -165,16 +174,27 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None):
             groups[key] = (_ColorGroup(), tuple(rgb))
         return groups[key][0]
 
+    hidden_atoms, hide_bond_rings = ring_hidden_geometry(
+        cfg, rings or [], ring_keys)
+    hidden_atoms = set(hidden_atoms) | hidden_hydrogen_indices(atoms, cfg)
+    hydrogens = hidden_hydrogen_indices(atoms, cfg)
+
     colors = []
     for pos_idx, (symbol, pos) in enumerate(atoms):
         orig = atom_keys[pos_idx] if atom_keys else pos_idx
         radius = resolve_atom_radius(cfg, symbol, orig)
         rgb = resolve_atom_color(cfg, symbol, orig)
         colors.append(rgb)
+        if pos_idx in hidden_atoms:
+            continue
         t = _sphere_transform(pos, radius)
         group_for(rgb).add(sphere[0], sphere[1], sphere[2], t, lambda n: n)
 
     for i, j, _order in bonds:
+        if i in hydrogens or j in hydrogens:
+            continue
+        if any(i in members and j in members for members in hide_bond_rings):
+            continue
         rgb = resolve_bond_color(cfg, colors[i], colors[j])
         pos_t, nrm_t, length = _oriented_transform(
             atoms[i][1], atoms[j][1], max(cfg.bond_radius, 0.01))
@@ -194,9 +214,10 @@ def _pad(data, alignment=4, fill=b"\x00"):
     return data if remainder == 0 else data + fill * (alignment - remainder)
 
 
-def build_glb(atoms, bonds, cfg: StyleConfig, atom_keys=None) -> bytes:
+def build_glb(atoms, bonds, cfg: StyleConfig, atom_keys=None,
+              rings=None, ring_keys=None) -> bytes:
     """Return a binary glTF (.glb) document for the molecule."""
-    groups = build_color_groups(atoms, bonds, cfg, atom_keys)
+    groups = build_color_groups(atoms, bonds, cfg, atom_keys, rings, ring_keys)
 
     bin_blob = bytearray()
     accessors, buffer_views, meshes, materials, nodes = [], [], [], [], []
@@ -284,8 +305,14 @@ def build_glb(atoms, bonds, cfg: StyleConfig, atom_keys=None) -> bytes:
 # ---------------------------------------------------------------------- USD
 
 
-def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None) -> str:
+def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None,
+               rings=None, ring_keys=None) -> str:
     """Return an ASCII USD (.usda) document using native Sphere/Cylinder prims."""
+    hidden_atoms, hide_bond_rings = ring_hidden_geometry(
+        cfg, rings or [], ring_keys)
+    hidden_atoms = set(hidden_atoms) | hidden_hydrogen_indices(atoms, cfg)
+    hydrogens = hidden_hydrogen_indices(atoms, cfg)
+
     lines = [
         '#usda 1.0',
         '(',
@@ -304,6 +331,8 @@ def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None) -> str:
         radius = resolve_atom_radius(cfg, symbol, orig)
         rgb = resolve_atom_color(cfg, symbol, orig)
         colors.append(rgb)
+        if pos_idx in hidden_atoms:
+            continue
         lines += [
             '    def Sphere "Atom_%03d"' % pos_idx,
             '    {',
@@ -317,6 +346,10 @@ def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None) -> str:
         ]
 
     for bidx, (i, j, _order) in enumerate(bonds):
+        if i in hydrogens or j in hydrogens:
+            continue
+        if any(i in members and j in members for members in hide_bond_rings):
+            continue
         start, end = atoms[i][1], atoms[j][1]
         direction = (end[0] - start[0], end[1] - start[1], end[2] - start[2])
         length = math.sqrt(sum(d * d for d in direction))
@@ -360,10 +393,17 @@ def export_mesh_file(mol, cfg: StyleConfig, path: str, selected_indices=None):
     from .blender_codegen import _keep_list
     atom_keys = _keep_list(mol.GetNumAtoms(), selected_indices)
 
+    rings, ring_keys = [], []
+    if cfg.ring_style != "none":
+        rings = extract_rings(mol, selected_indices, cfg.ring_aromatic_only)
+        originals = extract_rings(
+            mol, selected_indices, cfg.ring_aromatic_only, keep_original=True)
+        ring_keys = [ring_key(r) for r in originals]
+
     lower = path.lower()
     if lower.endswith((".usda", ".usd")):
         with open(path, "w", encoding="utf-8") as f:
-            f.write(build_usda(atoms, bonds, cfg, atom_keys))
+            f.write(build_usda(atoms, bonds, cfg, atom_keys, rings, ring_keys))
     else:
         with open(path, "wb") as f:
-            f.write(build_glb(atoms, bonds, cfg, atom_keys))
+            f.write(build_glb(atoms, bonds, cfg, atom_keys, rings, ring_keys))

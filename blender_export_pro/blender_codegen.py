@@ -236,18 +236,34 @@ def _atom_records(atoms, cfg: StyleConfig, atom_keys=None, hidden_atoms=None):
     return records
 
 
-def _bond_records(bonds, cfg: StyleConfig, hide_bond_rings=None):
+def _bond_records(bonds, cfg: StyleConfig, hide_bond_rings=None,
+                  hidden_endpoints=None):
+    """Per-bond records with a visibility flag.
+
+    A bond is hidden if either endpoint is a fully-omitted atom
+    (*hidden_endpoints*, e.g. hydrogens) or both endpoints lie in a ring
+    whose internal bonds are hidden (*hide_bond_rings*).
+    """
     hide_rings = hide_bond_rings or []
+    endpoints = hidden_endpoints or set()
     records = []
     for i, j, order in bonds:
-        visible = not any(i in members and j in members
-                          for members in hide_rings)
+        visible = (i not in endpoints and j not in endpoints
+                   and not any(i in members and j in members
+                               for members in hide_rings))
         records.append({
             "a": i, "b": j,
             "order": order if cfg.show_multiple_bonds else 1,
             "visible": visible,
         })
     return records
+
+
+def hidden_hydrogen_indices(atoms, cfg: StyleConfig):
+    """Export-order indices of hydrogens to omit (empty unless enabled)."""
+    if not cfg.hide_hydrogens:
+        return set()
+    return {idx for idx, (symbol, _pos) in enumerate(atoms) if symbol == "H"}
 
 
 def resolve_ring_style(cfg: StyleConfig, key: str) -> dict:
@@ -339,10 +355,12 @@ def generate_script(atoms, bonds, cfg: StyleConfig, rings=None,
         params["roughness"] = min(cfg.roughness_override, 1.0)
 
     hidden_atoms, hide_bond_rings = ring_hidden_geometry(cfg, rings, ring_keys)
+    hydrogens = hidden_hydrogen_indices(atoms, cfg)
+    hidden_atoms = set(hidden_atoms) | hydrogens
     atom_data = json.dumps(
         _atom_records(atoms, cfg, atom_keys, hidden_atoms), indent=1)
     bond_data = json.dumps(
-        _bond_records(bonds, cfg, hide_bond_rings), indent=1)
+        _bond_records(bonds, cfg, hide_bond_rings, hydrogens), indent=1)
     ring_data = json.dumps(_ring_records(atoms, rings, cfg, ring_keys), indent=1)
 
     generated_on = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -811,6 +829,8 @@ def create_labels(coll):
 
     cam = bpy.context.scene.camera
     for idx, rec in enumerate(ATOMS):
+        if not rec.get("visible", True):
+            continue
         if LABEL_MODE == "symbol":
             text = rec["symbol"]
         elif LABEL_MODE == "index":

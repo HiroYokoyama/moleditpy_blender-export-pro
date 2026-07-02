@@ -11,6 +11,7 @@ from .blender_codegen import (
     extract_geometry,
     extract_rings,
     hex_to_rgb,
+    hidden_hydrogen_indices,
     resolve_atom_color,
     resolve_atom_radius,
     resolve_ring_style,
@@ -132,13 +133,18 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
     resolution = 12 if cfg.atom_shape == "ico_sphere" else 24
 
     # Atoms/bonds of paneled rings can be hidden (show the plate only).
-    hidden_atoms, hide_bond_rings = ({}, [])
+    hidden_atoms, hide_bond_rings = set(), []
     if cfg.ring_style == "panel":
         try:
             hidden_atoms, hide_bond_rings = ring_hidden_geometry(
                 cfg, extract_rings(mol, None, cfg.ring_aromatic_only))
+            hidden_atoms = set(hidden_atoms)
         except Exception:
             logging.exception("BlenderExportPro: ring-hide computation failed")
+
+    # Hydrogens can be omitted entirely (atom sphere + every bond to it).
+    hidden_endpoints = hidden_hydrogen_indices(atoms, cfg)
+    hidden_atoms |= hidden_endpoints
 
     try:
         plotter.clear()
@@ -173,6 +179,8 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
 
     bond_radius = max(cfg.bond_radius, 0.01)
     for idx, (i, j, order) in enumerate(bonds):
+        if i in hidden_endpoints or j in hidden_endpoints:
+            continue
         if any(i in members and j in members for members in hide_bond_rings):
             continue
         start, end = positions[i], positions[j]
@@ -225,7 +233,7 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
         _draw_ring_panels(plotter, mol, atoms, positions, cfg)
 
     if cfg.label_mode != "none":
-        _draw_labels(plotter, atoms, positions, cfg)
+        _draw_labels(plotter, atoms, positions, cfg, hidden_atoms)
 
     try:
         plotter.render()
@@ -288,16 +296,24 @@ def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
             logging.exception("BlenderExportPro: ring panel preview failed")
 
 
-def _draw_labels(plotter, atoms, positions, cfg: StyleConfig) -> None:
+def _draw_labels(plotter, atoms, positions, cfg: StyleConfig,
+                 hidden_atoms=None) -> None:
     """Screen-space text labels approximating the exported 3D labels."""
-    labels = []
+    hidden = hidden_atoms or set()
+    labels, pts = [], []
     for idx, (symbol, _pos) in enumerate(atoms):
+        if idx in hidden:
+            continue
         if cfg.label_mode == "symbol":
             labels.append(symbol)
         elif cfg.label_mode == "index":
             labels.append(str(idx))
         else:
             labels.append(f"{symbol}{idx}")
+        pts.append(positions[idx])
+    if not pts:
+        return
+    positions = np.array(pts)
     try:
         plotter.add_point_labels(
             positions,
