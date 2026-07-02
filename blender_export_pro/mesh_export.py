@@ -21,6 +21,7 @@ from .blender_codegen import (
     extract_rings,
     hidden_atom_indices,
     hidden_bond_keys,
+    noise_displacement,
     resolve_atom_color,
     resolve_atom_radius,
     ring_hidden_geometry,
@@ -293,6 +294,17 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
             group_for(rgb).add(
                 cylinder[0], cylinder[1], cylinder[2], pos_t, nrm_t)
 
+    # Bake noise displacement into atoms/bonds (the Blender script uses a
+    # Displace modifier; ring plates get none there either, so they are
+    # added after this pass and stay crisp).
+    if cfg.deformation_noise > 0.0:
+        for group, _rgba in groups.values():
+            group.positions = [
+                tuple(p[k] + n[k] * noise_displacement(
+                    p, cfg.deformation_noise,
+                    cfg.deformation_noise_scale) * 0.5 for k in range(3))
+                for p, n in zip(group.positions, group.normals)]
+
     if rings and (ring_panels_enabled(cfg) or ring_outlines_enabled(cfg)):
         for rec in _ring_records(atoms, rings, cfg, ring_keys):
             if not rec["visible"]:
@@ -454,7 +466,11 @@ def _usda_cylinder(name, start, end, radius, rgb):
 
 def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None,
                rings=None, ring_keys=None) -> str:
-    """Return an ASCII USD (.usda) document using native Sphere/Cylinder prims."""
+    """Return an ASCII USD (.usda) document using native Sphere/Cylinder prims.
+
+    Native prims carry no per-vertex data, so noise/bend/twist deformation
+    cannot be baked here — use the .glb export (or Blender) for that.
+    """
     ring_hidden, hide_bond_rings = ring_hidden_geometry(
         cfg, rings or [], ring_keys)
     endpoints = hidden_atom_indices(atoms, cfg, atom_keys)

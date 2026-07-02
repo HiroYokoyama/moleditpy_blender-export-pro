@@ -6,6 +6,7 @@ StyleConfig and emits a self-contained script runnable inside Blender 2.8x-4.x.
 """
 
 import datetime
+import math
 import pprint
 
 from . import __version__
@@ -147,6 +148,21 @@ def resolve_bond_color(cfg: StyleConfig, color_a, color_b) -> list:
     if cfg.bond_color_mode == "single":
         return [round(c, 4) for c in hex_to_rgb(cfg.bond_color)]
     return [round((color_a[k] + color_b[k]) / 2.0, 4) for k in range(3)]
+
+
+def noise_displacement(point, strength, scale) -> float:
+    """Smooth deterministic pseudo-noise approximating Blender's clouds
+    Displace: a scalar in [-strength, strength] varying smoothly with world
+    position. Used by the preview and the glTF export; the Blender script
+    uses a real Displace modifier instead."""
+    if strength <= 0.0:
+        return 0.0
+    k = 2.0 / max(float(scale), 1e-3)
+    x, y, z = (float(point[0]) * k, float(point[1]) * k, float(point[2]) * k)
+    value = (math.sin(x * 1.7 + y * 0.8 + 2.4)
+             + math.sin(y * 1.3 + z * 1.1 + 4.1)
+             + math.sin(z * 0.9 + x * 1.5 + 1.2)) / 3.0
+    return value * float(strength)
 
 
 GRADIENT_BOND_PIECES = 4
@@ -667,13 +683,15 @@ def shade_smooth(obj):
 
 
 def add_deform_modifiers(obj):
-    if obj.type != "MESH":
+    # SimpleDeform (bend/twist) also works on curve bonds; Displace and
+    # Subsurf are mesh-only.
+    if obj.type not in ("MESH", "CURVE"):
         return
-    if SUBDIV_LEVEL > 0:
+    if obj.type == "MESH" and SUBDIV_LEVEL > 0:
         mod = obj.modifiers.new("StyleSubdiv", "SUBSURF")
         mod.levels = SUBDIV_LEVEL
         mod.render_levels = SUBDIV_LEVEL
-    if NOISE_STRENGTH > 0.0:
+    if obj.type == "MESH" and NOISE_STRENGTH > 0.0:
         tex = bpy.data.textures.get("BlenderExportProNoise")
         if tex is None:
             tex = bpy.data.textures.new("BlenderExportProNoise", type="CLOUDS")

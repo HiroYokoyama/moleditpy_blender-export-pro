@@ -16,6 +16,7 @@ from .blender_codegen import (
     hex_to_rgb,
     hidden_atom_indices,
     hidden_bond_keys,
+    noise_displacement,
     resolve_atom_color,
     resolve_atom_radius,
     resolve_ring_style,
@@ -157,8 +158,9 @@ def _apply_lighting(plotter, cfg: StyleConfig, center, size) -> None:
         _ensure_lighting(plotter)
 
 
-def _displace(mesh, cfg: StyleConfig, rng) -> None:
-    """Cheap noise displacement along normals to mimic the Displace modifier."""
+def _displace(mesh, cfg: StyleConfig, _rng=None) -> None:
+    """Smooth noise displacement along normals, mimicking the Displace
+    modifier — same noise_displacement() field as the glTF export."""
     if cfg.deformation_noise <= 0.0:
         return
     try:
@@ -166,9 +168,10 @@ def _displace(mesh, cfg: StyleConfig, rng) -> None:
         normals = mesh.point_data.get("Normals")
         if normals is None:
             return
-        amounts = rng.uniform(
-            -cfg.deformation_noise, cfg.deformation_noise, mesh.n_points
-        )
+        amounts = np.array([
+            noise_displacement(p, cfg.deformation_noise,
+                               cfg.deformation_noise_scale)
+            for p in mesh.points])
         mesh.points = mesh.points + normals * amounts[:, None] * 0.5
     except Exception:
         logging.debug("BlenderExportPro: preview displace failed", exc_info=True)

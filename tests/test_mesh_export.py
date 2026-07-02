@@ -239,6 +239,47 @@ def test_usda_gradient_bonds_emit_slices():
     assert usda.count("def Cylinder") == len(bonds) * GRADIENT_BOND_PIECES
 
 
+def test_noise_displacement_field():
+    from blender_export_pro.blender_codegen import noise_displacement
+    assert noise_displacement((1.0, 2.0, 3.0), 0.0, 1.5) == 0.0
+    a = noise_displacement((1.0, 2.0, 3.0), 0.4, 1.5)
+    b = noise_displacement((1.0, 2.0, 3.0), 0.4, 1.5)
+    c = noise_displacement((3.0, 1.0, 2.0), 0.4, 1.5)
+    assert a == b                     # deterministic
+    assert abs(a) <= 0.4              # bounded by strength
+    assert a != c                     # varies over space
+
+
+def test_glb_noise_deforms_atoms_but_not_ring_plates():
+    cfg_plain = StyleConfig(ring_style="panel", ring_color="#FF0000")
+    cfg_noise = StyleConfig(ring_style="panel", ring_color="#FF0000",
+                            deformation_noise=0.3)
+    atoms, bonds, rings, ring_keys = _benzene_with_rings(cfg_noise)
+
+    def by_key(cfg):
+        return {key: grp for key, (grp, _rgba) in me.build_color_groups(
+            atoms, bonds, cfg, rings=rings, ring_keys=ring_keys).items()}
+
+    plain, noisy = by_key(cfg_plain), by_key(cfg_noise)
+    assert plain.keys() == noisy.keys()
+    plate_key = "1.0000_0.0000_0.0000_0.5500"     # ring color at opacity
+    for key in plain:
+        if key == plate_key:
+            assert plain[key].positions == noisy[key].positions
+        else:
+            assert plain[key].positions != noisy[key].positions
+
+
+def test_curve_bonds_get_bend_twist_modifiers():
+    from blender_export_pro import blender_codegen as bc
+    atoms, bonds = me.extract_geometry(make_ethanol_like())
+    script = bc.generate_script(
+        atoms, bonds,
+        StyleConfig(bond_style="curve", deformation_twist=45.0))
+    assert '("MESH", "CURVE")' in script
+    compile(script, "<generated>", "exec")
+
+
 def test_usda_cylinder_degenerate_segment_is_empty():
     assert me._usda_cylinder("X", (0, 0, 0), (0, 0, 0), 0.1,
                              (1.0, 0.0, 0.0)) == []
