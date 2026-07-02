@@ -15,5 +15,6 @@
     "shade_smooth": true,
     "material_preset": "clay",
     "color_mode": "cpk",
-    "scene_preset": "studio"
+    "scene_preset": "studio",
+    "bond_color_mode": "gradient"
 }

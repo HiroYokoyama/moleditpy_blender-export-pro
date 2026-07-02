@@ -7,7 +7,7 @@
     "bond_style": "cylinder",
     "bond_radius": 0.1,
     "show_multiple_bonds": false,
-    "ring_style": "panel",
+    "ring_style": "panel+outline",
     "ring_aromatic_only": true,
     "ring_scale": 0.92,
     "ring_thickness": 0.05,
@@ -19,5 +19,9 @@
     "shade_smooth": true,
     "material_preset": "glass",
     "color_mode": "cpk",
-    "scene_preset": "dark"
+    "scene_preset": "dark",
+    "ring_outline_radius": 0.035,
+    "ring_bevel": true,
+    "hide_all_bonds": false,
+    "bond_color_mode": "atoms"
 }
