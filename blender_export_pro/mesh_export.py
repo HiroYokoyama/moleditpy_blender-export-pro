@@ -119,27 +119,29 @@ def _ring_plate_mesh(pts, thickness):
 
     Top and bottom faces are always emitted (so a zero-thickness sheet is
     visible from both sides); side quads appear when thickness > 0.
-    Vertices are duplicated per face for flat shading.
+    Faces are centroid fans (symmetric triangles, robust for slightly
+    non-planar rings); vertices are duplicated per face for flat shading.
     """
     n = len(pts)
     normal = _norm(_cross(
         tuple(pts[1][k] - pts[0][k] for k in range(3)),
         tuple(pts[2][k] - pts[0][k] for k in range(3))))
     half = tuple(normal[k] * thickness / 2.0 for k in range(3))
+    center = tuple(sum(p[k] for p in pts) / n for k in range(3))
     top = [tuple(p[k] + half[k] for k in range(3)) for p in pts]
     bottom = [tuple(p[k] - half[k] for k in range(3)) for p in pts]
     neg = tuple(-c for c in normal)
 
     verts, normals, faces = [], [], []
-    verts += top
-    normals += [normal] * n
-    for k in range(1, n - 1):
-        faces += [0, k, k + 1]
+    verts += [tuple(center[k] + half[k] for k in range(3))] + top
+    normals += [normal] * (n + 1)
+    for k in range(n):
+        faces += [0, 1 + k, 1 + (k + 1) % n]
     base = len(verts)
-    verts += bottom
-    normals += [neg] * n
-    for k in range(1, n - 1):
-        faces += [base, base + k + 1, base + k]
+    verts += [tuple(center[k] - half[k] for k in range(3))] + bottom
+    normals += [neg] * (n + 1)
+    for k in range(n):
+        faces += [base, base + 1 + (k + 1) % n, base + 1 + k]
 
     if thickness > 0.0:
         for k in range(n):

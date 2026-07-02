@@ -7,12 +7,12 @@ MoleditPy never imports bpy; the output is a plain Python text file.
 
 import logging
 
-from .style_config import STYLE_NAME, StyleConfig, load_config, save_config
+from .style_config import STYLE_NAME, StyleConfig, load_config
 
 PLUGIN_NAME = "Blender Export Pro"
 # Must stay a literal string: the host's Plugin Manager AST-parses this file
 # and only picks up constant assignments (Name references read as "Unknown").
-PLUGIN_VERSION = "0.3.0"
+PLUGIN_VERSION = "1.0.0"
 __version__ = PLUGIN_VERSION
 PLUGIN_AUTHOR = "HiroYokoyama"
 PLUGIN_DESCRIPTION = (
@@ -175,7 +175,6 @@ def quick_export(context) -> None:
                              f"Could not write file:\n{exc}")
         return
 
-    save_config(_style)
     context.show_status_message("Blender script exported.", 4000)
 
 
@@ -205,7 +204,6 @@ def quick_export_mesh(context) -> None:
                              f"3D model export failed:\n{exc}")
         return
 
-    save_config(_style)
     import os
     context.show_status_message(
         f"3D model exported: {os.path.basename(path)}", 4000)

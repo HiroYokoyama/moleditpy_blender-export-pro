@@ -94,6 +94,7 @@ class StyleConfig:
     ring_color: str = "#E8D44D"
     ring_opacity: float = 0.55
     ring_outline_radius: float = 0.04  # perimeter line tube radius (Å)
+    ring_bevel: bool = True           # softly round the plate edges in Blender
     ring_hide_atoms: bool = False     # hide atoms of paneled rings (show plate only)
     ring_hide_bonds: bool = False     # hide the ring's internal bonds too
     # Per-ring style overrides, keyed by ring_key() (sorted atom indices,
@@ -195,7 +196,7 @@ class StyleConfig:
 
 
 def settings_path() -> str:
-    """Path of the durable companion settings.json inside the plugin folder."""
+    """Path of the small companion settings.json inside the plugin folder."""
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
 
 
@@ -203,25 +204,44 @@ def presets_dir() -> str:
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "presets")
 
 
-def load_config() -> StyleConfig:
-    """Load the user's last-used config from settings.json (or defaults)."""
-    cfg = StyleConfig()
+def load_settings() -> dict:
+    """Read settings.json — holds only lightweight preferences
+    ({"last_preset": display name}), never the full style."""
     path = settings_path()
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
-                cfg.update_from_dict(json.load(f))
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
         except (OSError, json.JSONDecodeError):
             logging.exception("BlenderExportPro: failed to read %s", path)
-    return cfg
+    return {}
 
 
-def save_config(cfg: StyleConfig) -> None:
+def save_last_preset(name: str) -> None:
+    """Remember which preset was applied last (the only global persistence)."""
     try:
         with open(settings_path(), "w", encoding="utf-8") as f:
-            json.dump(cfg.to_dict(), f, indent=4)
+            json.dump({"last_preset": str(name)}, f, indent=4)
     except OSError:
         logging.exception("BlenderExportPro: failed to write settings.json")
+
+
+def load_config() -> StyleConfig:
+    """Fresh defaults each launch, plus the last-applied preset (if any).
+
+    The full style is deliberately NOT persisted globally: every launch
+    starts clean, and only project files (.pmeprj save/load handlers)
+    restore a saved style. settings.json just names the last preset.
+    """
+    cfg = StyleConfig()
+    name = load_settings().get("last_preset")
+    if name:
+        path = list_presets().get(str(name))
+        if path:
+            load_preset(cfg, path)
+    return cfg
 
 
 def list_presets() -> dict:

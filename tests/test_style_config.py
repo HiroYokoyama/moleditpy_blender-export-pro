@@ -193,18 +193,38 @@ def test_load_preset_bad_file(tmp_path):
     assert cfg == StyleConfig()
 
 
-def test_settings_round_trip(tmp_path, monkeypatch):
+def test_settings_store_only_last_preset(tmp_path, monkeypatch):
     settings = tmp_path / "settings.json"
     monkeypatch.setattr(sc, "settings_path", lambda: str(settings))
 
-    cfg = StyleConfig(scene_preset="dark", bond_segments=12)
-    sc.save_config(cfg)
-    assert settings.exists()
-    assert json.loads(settings.read_text(encoding="utf-8"))["scene_preset"] == "dark"
+    sc.save_last_preset("Cute Cartoon")
+    data = json.loads(settings.read_text(encoding="utf-8"))
+    assert data == {"last_preset": "Cute Cartoon"}   # never the full style
 
+
+def test_load_config_applies_last_preset(tmp_path, monkeypatch):
+    settings = tmp_path / "settings.json"
+    monkeypatch.setattr(sc, "settings_path", lambda: str(settings))
+
+    preset = tmp_path / "my_style.json"
+    preset.write_text(json.dumps({"bond_segments": 7}), encoding="utf-8")
+    monkeypatch.setattr(sc, "list_presets",
+                        lambda: {"My Style": str(preset)})
+
+    sc.save_last_preset("My Style")
     loaded = sc.load_config()
-    assert loaded.scene_preset == "dark"
-    assert loaded.bond_segments == 12
+    assert loaded.bond_segments == 7
+
+
+def test_load_config_resets_to_defaults(tmp_path, monkeypatch):
+    """A launch never restores tweaked settings — only project files do."""
+    settings = tmp_path / "settings.json"
+    monkeypatch.setattr(sc, "settings_path", lambda: str(settings))
+
+    # even a legacy full-config settings.json is ignored
+    settings.write_text(json.dumps({"scene_preset": "dark",
+                                    "bond_segments": 12}), encoding="utf-8")
+    assert sc.load_config() == StyleConfig()
 
 
 def test_load_config_missing_file(tmp_path, monkeypatch):

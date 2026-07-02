@@ -56,6 +56,146 @@ from .style_config import (
 )
 
 
+# Warm "old paper" theme: ivory paper, ink text, terracotta accent, serif
+# headings — scoped to this dialog only (the host app keeps its own look).
+PAPER_STYLESHEET = """
+QDialog {
+    background-color: #F2ECDF;
+}
+QLabel, QCheckBox, QRadioButton {
+    color: #3D3629;
+    background: transparent;
+}
+QGroupBox {
+    font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
+    font-size: 13px;
+    font-weight: bold;
+    color: #6B4A32;
+    background-color: #FAF5E9;
+    border: 1px solid #D6C9AE;
+    border-radius: 8px;
+    margin-top: 14px;
+    padding-top: 6px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 5px;
+}
+QPushButton {
+    background-color: #EDE4D0;
+    color: #3D3629;
+    border: 1px solid #C6B694;
+    border-radius: 6px;
+    padding: 5px 12px;
+}
+QPushButton:hover {
+    background-color: #E4D8BE;
+    border-color: #AD9871;
+}
+QPushButton:pressed {
+    background-color: #D9CAA9;
+}
+QPushButton:default {
+    background-color: #BD5D3A;
+    color: #FDF9F0;
+    border: 1px solid #9E4C2F;
+    font-weight: bold;
+}
+QPushButton:default:hover {
+    background-color: #AC5233;
+}
+QPushButton:checked {
+    background-color: #D9CAA9;
+    border-color: #9E8B63;
+}
+QTabWidget::pane {
+    background-color: #FAF5E9;
+    border: 1px solid #D6C9AE;
+    border-radius: 6px;
+}
+QTabBar::tab {
+    background-color: #E7DCC4;
+    color: #6B5A41;
+    border: 1px solid #D6C9AE;
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 5px 11px;
+    margin-right: 2px;
+}
+QTabBar::tab:selected {
+    background-color: #FAF5E9;
+    color: #3D3629;
+    font-weight: bold;
+}
+QTabBar::tab:hover:!selected {
+    background-color: #EFE6D1;
+}
+QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background-color: #FFFDF6;
+    color: #3D3629;
+    border: 1px solid #CDBE9E;
+    border-radius: 4px;
+    padding: 2px 5px;
+    selection-background-color: #BD5D3A;
+    selection-color: #FDF9F0;
+}
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border-color: #BD5D3A;
+}
+QComboBox QAbstractItemView {
+    background-color: #FFFDF6;
+    color: #3D3629;
+    border: 1px solid #CDBE9E;
+    selection-background-color: #BD5D3A;
+    selection-color: #FDF9F0;
+}
+QTableWidget {
+    background-color: #FFFDF6;
+    color: #3D3629;
+    border: 1px solid #CDBE9E;
+    gridline-color: #E4DAC2;
+    selection-background-color: #E8C9B4;
+    selection-color: #3D3629;
+}
+QHeaderView::section {
+    background-color: #E7DCC4;
+    color: #6B5A41;
+    border: none;
+    border-bottom: 1px solid #D6C9AE;
+    border-right: 1px solid #E4DAC2;
+    padding: 3px 6px;
+}
+QScrollArea {
+    background: transparent;
+    border: none;
+}
+QScrollBar:vertical {
+    background: #EDE4D0;
+    width: 12px;
+    border-radius: 6px;
+}
+QScrollBar::handle:vertical {
+    background: #C6B694;
+    border-radius: 5px;
+    min-height: 24px;
+    margin: 1px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #AD9871;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+}
+QToolTip {
+    background-color: #FFF8E4;
+    color: #3D3629;
+    border: 1px solid #C6B694;
+}
+"""
+
+
 class BlenderExportDialog(QDialog):
     """Config panel: quick-start actions plus advanced tabbed settings."""
 
@@ -67,6 +207,10 @@ class BlenderExportDialog(QDialog):
 
         self.setWindowTitle("Blender Export Pro")
         self.setMinimumWidth(460)
+        try:
+            self.setStyleSheet(PAPER_STYLESHEET)
+        except Exception:
+            logging.exception("BlenderExportPro: stylesheet failed")
 
         layout = QVBoxLayout(self)
         layout.addWidget(self._build_quick_start())
@@ -149,6 +293,7 @@ class BlenderExportDialog(QDialog):
         row.addWidget(self.standard_btn)
         vbox.addLayout(row)
 
+        row = QHBoxLayout()
         export_btn = QPushButton("Export Blender Script…")
         export_btn.setToolTip(
             "Generate a self-contained .py file. In Blender: Scripting "
@@ -156,7 +301,16 @@ class BlenderExportDialog(QDialog):
             "on this machine.")
         export_btn.setDefault(True)
         export_btn.clicked.connect(self._export_script)
-        vbox.addWidget(export_btn)
+        row.addWidget(export_btn)
+
+        mesh_btn = QPushButton("Export 3D Model (.glb / .usda)…")
+        mesh_btn.setToolTip(
+            "Write a standard glTF or USD 3D model with the current style — "
+            "opens in Windows 3D Viewer, web viewers, PowerPoint, Blender, "
+            "Maya, etc. No Blender needed at all.")
+        mesh_btn.clicked.connect(self._export_mesh)
+        row.addWidget(mesh_btn)
+        vbox.addLayout(row)
 
         return box
 
@@ -396,6 +550,12 @@ class BlenderExportDialog(QDialog):
             "(used by the outline styles).")
         form.addRow("Outline width (Å):", self.ring_outline_radius)
 
+        self.ring_bevel = QCheckBox("Smooth plate edges (bevel)")
+        self.ring_bevel.setToolTip(
+            "Softly round the plate edges in the Blender export (Bevel "
+            "modifier on extruded plates). Off = razor-sharp edges.")
+        form.addRow(self.ring_bevel)
+
         self.ring_hide_atoms = QCheckBox("Hide atoms of paneled rings")
         self.ring_hide_atoms.setToolTip(
             "Show only the ring plate, not the ball atoms — a clean "
@@ -444,6 +604,27 @@ class BlenderExportDialog(QDialog):
             "global settings again.")
         reset_ring_btn.clicked.connect(self._reset_selected_ring)
         row.addWidget(reset_ring_btn)
+        form.addRow(row)
+
+        row = QHBoxLayout()
+        show_all_btn = QPushButton("Show All Rings")
+        show_all_btn.setToolTip("Make every ring's panel/outline visible.")
+        show_all_btn.clicked.connect(lambda: self._set_all_rings_visible(True))
+        row.addWidget(show_all_btn)
+
+        hide_all_btn = QPushButton("Hide All Rings")
+        hide_all_btn.setToolTip(
+            "Hide every ring's panel/outline in one click (atoms and bonds "
+            "stay). Use Show All Rings or Reset All to bring them back.")
+        hide_all_btn.clicked.connect(lambda: self._set_all_rings_visible(False))
+        row.addWidget(hide_all_btn)
+
+        reset_all_btn = QPushButton("Reset All Rings")
+        reset_all_btn.setToolTip(
+            "Delete every per-ring override — all rings follow the global "
+            "settings above again.")
+        reset_all_btn.clicked.connect(self._reset_all_rings)
+        row.addWidget(reset_all_btn)
         form.addRow(row)
 
         self._ring_keys_by_row = []
@@ -853,6 +1034,7 @@ class BlenderExportDialog(QDialog):
         ("ring_color", "text"),
         ("ring_opacity", "float"),
         ("ring_outline_radius", "float"),
+        ("ring_bevel", "bool"),
         ("ring_hide_atoms", "bool"),
         ("ring_hide_bonds", "bool"),
         ("deformation_noise", "float"),
@@ -1353,6 +1535,28 @@ class BlenderExportDialog(QDialog):
         self.ring_table.selectRow(row)
         self._refresh_preview_if_active()
 
+    def _set_all_rings_visible(self, visible: bool):
+        """Show/hide every detected ring's panel+outline in one click."""
+        if not self._ring_keys_by_row:
+            self._refresh_ring_table()
+        if not isinstance(self._cfg.ring_overrides, dict):
+            self._cfg.ring_overrides = {}
+        for key in self._ring_keys_by_row:
+            override = dict(self._cfg.ring_overrides.get(key) or {})
+            override["visible"] = visible
+            self._cfg.ring_overrides[key] = override
+        self._refresh_ring_table()
+        self._refresh_preview_if_active()
+        self._context.show_status_message(
+            "All rings shown." if visible else "All rings hidden.", 3000)
+
+    def _reset_all_rings(self):
+        """Delete every per-ring override."""
+        self._cfg.ring_overrides = {}
+        self._refresh_ring_table()
+        self._refresh_preview_if_active()
+        self._context.show_status_message("All per-ring styles reset.", 3000)
+
     # ------------------------------------------------------------- actions
 
     def _activate_preview(self):
@@ -1383,6 +1587,7 @@ class BlenderExportDialog(QDialog):
             # Applying a preset switches the 3D view to the styled preview
             # right away, so the effect is visible without extra clicks.
             self._activate_preview()
+            sc.save_last_preset(name)
             self._context.show_status_message(f"Preset applied: {name}", 3000)
 
     def _load_preset_file(self):
@@ -1454,14 +1659,47 @@ class BlenderExportDialog(QDialog):
                                  f"Could not write file:\n{exc}")
             return
 
-        sc.save_config(self._cfg)
         self._context.show_status_message(
             f"Blender script exported: {os.path.basename(path)}", 4000)
+
+    def _export_mesh(self):
+        """Export a Blender-free .glb / .usda 3D model with the current style."""
+        self._pull_config()
+        mol = self._context.current_molecule
+        if mol is None:
+            QMessageBox.warning(self, "Blender Export Pro",
+                                "No molecule with 3D coordinates is loaded.")
+            return
+
+        selected = None
+        if self.selection_only.isChecked():
+            selected = self._context.get_selected_atom_indices()
+            if not selected:
+                QMessageBox.warning(self, "Blender Export Pro",
+                                    "Selection-only export: no atoms selected.")
+                return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save 3D Model", "molecule.glb",
+            "glTF binary (*.glb);;USD ASCII (*.usda)")
+        if not path:
+            return
+        try:
+            from .mesh_export import export_mesh_file
+            export_mesh_file(mol, self._cfg, path, selected)
+        except Exception as exc:
+            logging.exception("BlenderExportPro: mesh export failed")
+            QMessageBox.critical(self, "Blender Export Pro",
+                                 f"3D model export failed:\n{exc}")
+            return
+        self._context.show_status_message(
+            f"3D model exported: {os.path.basename(path)}", 4000)
 
     # ------------------------------------------------------------ lifecycle
 
     def closeEvent(self, event: QCloseEvent):
-        """Hide instead of destroying; persist the last-used config."""
+        """Hide instead of destroying (config lives in the shared StyleConfig;
+        nothing is persisted globally — projects save their own style)."""
         try:
             from .preview_style import set_highlighted_ring
             set_highlighted_ring(None)
@@ -1470,8 +1708,7 @@ class BlenderExportDialog(QDialog):
             logging.exception("BlenderExportPro: failed to clear highlight")
         try:
             self._pull_config()
-            sc.save_config(self._cfg)
         except Exception:
-            logging.exception("BlenderExportPro: failed to save on close")
+            logging.exception("BlenderExportPro: failed to pull config on close")
         event.ignore()
         self.hide()

@@ -363,6 +363,18 @@ def test_fill_rim_and_camera_scales_in_script():
     compile(script, "<generated>", "exec")
 
 
+def test_ring_bevel_selectable_in_script():
+    mol = make_benzene_like()
+    script = bc.generate_script_from_mol(
+        mol, StyleConfig(ring_style="panel", ring_bevel=True))
+    assert "RING_BEVEL = True" in script
+    assert "if RING_BEVEL:" in script
+    script = bc.generate_script_from_mol(
+        mol, StyleConfig(ring_style="panel", ring_bevel=False))
+    assert "RING_BEVEL = False" in script
+    compile(script, "<generated>", "exec")
+
+
 def test_multi_bond_scale_in_script():
     script = _generate(multi_bond_scale=1.0)
     assert "MULTI_BOND_SCALE = 1.0" in script

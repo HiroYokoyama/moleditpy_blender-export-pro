@@ -446,6 +446,7 @@ RING_SCALE = {float(cfg.ring_scale)!r}
 RING_THICKNESS = {float(cfg.ring_thickness)!r}
 RING_OPACITY = {float(cfg.ring_opacity)!r}
 RING_OUTLINE_RADIUS = {float(cfg.ring_outline_radius)!r}
+RING_BEVEL = {cfg.ring_bevel!r}
 NOISE_STRENGTH = {float(cfg.deformation_noise)!r}
 NOISE_SCALE = {float(cfg.deformation_noise_scale)!r}
 BEND_DEG = {float(cfg.deformation_bend)!r}
@@ -731,6 +732,12 @@ def create_ring_panel(coll, index, rec):
         mod = obj.modifiers.new("RingSolidify", "SOLIDIFY")
         mod.thickness = thickness
         mod.offset = 0.0
+        if RING_BEVEL:
+            # Softly rounded plate edges read better than razor-sharp ones.
+            bev = obj.modifiers.new("RingBevel", "BEVEL")
+            bev.width = min(thickness * 0.25, 0.03)
+            bev.segments = 2
+            bev.limit_method = "ANGLE"
 
     mat_name = "Mat_ring_%s_%.2f" % (
         "_".join("%.3f" % c for c in rec["color"]), opacity)

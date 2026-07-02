@@ -76,10 +76,10 @@ def _benzene_with_rings(cfg):
 def test_ring_plate_mesh_flat_and_thick():
     pts = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
     verts, normals, faces = me._ring_plate_mesh(pts, 0.0)
-    assert len(verts) == len(normals) == 8       # top + bottom copies
-    assert len(faces) == 2 * 2 * 3               # two fans of n-2 triangles
+    assert len(verts) == len(normals) == 2 * 5   # centroid + corners, x2 faces
+    assert len(faces) == 2 * 4 * 3               # two centroid fans of n tris
     verts, _normals, faces = me._ring_plate_mesh(pts, 0.2)
-    assert len(faces) == (2 * 2 + 4 * 2) * 3     # fans + 2 tris per side quad
+    assert len(faces) == (2 * 4 + 4 * 2) * 3     # fans + 2 tris per side quad
     zs = sorted({round(v[2], 6) for v in verts})
     assert zs == [-0.1, 0.1]                     # centered extrusion
 

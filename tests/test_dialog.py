@@ -67,6 +67,24 @@ def test_dialog_has_quick_start_actions():
     # atom hide + custom light handlers
     assert {"_hide_selected_atoms", "_show_selected_atoms",
             "_add_light", "_remove_light", "_rebuild_custom_lights"} <= methods
+    # glTF/USD export button + ring bulk actions
+    assert {"_export_mesh", "_set_all_rings_visible",
+            "_reset_all_rings"} <= methods
+
+
+def test_dialog_no_global_config_save():
+    """The dialog must never persist the full style to settings.json."""
+    source = (Path(ROOT) / "blender_export_pro" / "dialog.py").read_text(
+        encoding="utf-8")
+    assert "save_config" not in source
+    assert "save_last_preset" in source     # preset choice is remembered
+
+
+def test_dialog_has_paper_stylesheet():
+    source = (Path(ROOT) / "blender_export_pro" / "dialog.py").read_text(
+        encoding="utf-8")
+    assert "PAPER_STYLESHEET" in source
+    assert "setStyleSheet(PAPER_STYLESHEET)" in source
 
 
 def test_preview_material_kwargs_never_collide_with_add_mesh_args():

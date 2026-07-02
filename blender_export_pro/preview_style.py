@@ -318,6 +318,11 @@ def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
         logging.exception("BlenderExportPro: ring extraction failed")
         return
 
+    # Shade plates/outlines with the material preset too — but opacity is
+    # passed explicitly for panels, so it must not appear twice.
+    mat = _material_kwargs(cfg)
+    mat.pop("opacity", None)
+
     for idx, ring in enumerate(rings):
         key = ring_key(ring)
         style = resolve_ring_style(cfg, key)
@@ -354,6 +359,7 @@ def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
                     color=color,
                     opacity=style["opacity"],
                     name=f"bep_ring_{idx}",
+                    **mat,
                 )
             if style["visible"] and ring_outlines_enabled(cfg):
                 loop = np.vstack([panel_pts, panel_pts[:1]])
@@ -370,6 +376,8 @@ def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
                     outline,
                     color=color,
                     name=f"bep_ring_line_{idx}",
+                    smooth_shading=True,
+                    **mat,
                 )
             if highlighted:
                 _draw_ring_highlight(plotter, idx, pts, cfg)
