@@ -15,12 +15,14 @@ import struct
 
 from .blender_codegen import (
     _ring_records,
+    bond_key,
+    bond_piecewise,
     extract_geometry,
     extract_rings,
     hidden_atom_indices,
+    hidden_bond_keys,
     resolve_atom_color,
     resolve_atom_radius,
-    resolve_bond_color,
     ring_hidden_geometry,
     ring_key,
     ring_outlines_enabled,
@@ -271,18 +273,25 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
         pos_t, nrm_t = _sphere_transforms(pos, radius, scale)
         group_for(rgb).add(sphere[0], sphere[1], sphere[2], pos_t, nrm_t)
 
+    hidden_bonds = hidden_bond_keys(cfg)
     for i, j, _order in bonds:
         if i in endpoints or j in endpoints:
             continue
+        orig_i = atom_keys[i] if atom_keys else i
+        orig_j = atom_keys[j] if atom_keys else j
+        if bond_key(orig_i, orig_j) in hidden_bonds:
+            continue
         if any(i in members and j in members for members in hide_bond_rings):
             continue
-        rgb = resolve_bond_color(cfg, colors[i], colors[j])
-        pos_t, nrm_t, length = _oriented_transform(
-            atoms[i][1], atoms[j][1], max(cfg.bond_radius, 0.01))
-        if length < 1e-6:
-            continue
-        group_for(rgb).add(
-            cylinder[0], cylinder[1], cylinder[2], pos_t, nrm_t)
+        pieces = bond_piecewise(cfg, atoms[i][1], atoms[j][1],
+                                colors[i], colors[j])
+        for seg_start, seg_end, rgb in pieces:
+            pos_t, nrm_t, length = _oriented_transform(
+                seg_start, seg_end, max(cfg.bond_radius, 0.01))
+            if length < 1e-6:
+                continue
+            group_for(rgb).add(
+                cylinder[0], cylinder[1], cylinder[2], pos_t, nrm_t)
 
     if rings and (ring_panels_enabled(cfg) or ring_outlines_enabled(cfg)):
         for rec in _ring_records(atoms, rings, cfg, ring_keys):
@@ -493,14 +502,22 @@ def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None,
             '    }',
         ]
 
+    hidden_bonds = hidden_bond_keys(cfg)
     for bidx, (i, j, _order) in enumerate(bonds):
         if i in endpoints or j in endpoints:
             continue
+        orig_i = atom_keys[i] if atom_keys else i
+        orig_j = atom_keys[j] if atom_keys else j
+        if bond_key(orig_i, orig_j) in hidden_bonds:
+            continue
         if any(i in members and j in members for members in hide_bond_rings):
             continue
-        rgb = resolve_bond_color(cfg, colors[i], colors[j])
-        lines += _usda_cylinder("Bond_%03d" % bidx, atoms[i][1], atoms[j][1],
-                                max(cfg.bond_radius, 0.01), rgb)
+        pieces = bond_piecewise(cfg, atoms[i][1], atoms[j][1],
+                                colors[i], colors[j])
+        for p, (seg_start, seg_end, rgb) in enumerate(pieces):
+            lines += _usda_cylinder("Bond_%03d_%d" % (bidx, p),
+                                    seg_start, seg_end,
+                                    max(cfg.bond_radius, 0.01), rgb)
 
     if rings and (ring_panels_enabled(cfg) or ring_outlines_enabled(cfg)):
         for ridx, rec in enumerate(_ring_records(atoms, rings, cfg, ring_keys)):

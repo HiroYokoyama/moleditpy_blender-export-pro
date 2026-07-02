@@ -70,6 +70,9 @@ def test_dialog_has_quick_start_actions():
     # glTF/USD export button + ring bulk actions
     assert {"_export_mesh", "_set_all_rings_visible",
             "_reset_all_rings"} <= methods
+    # per-bond hiding
+    assert {"_hide_selected_bonds", "_show_selected_bonds",
+            "_reset_hidden_bonds", "_bond_keys_in_selection"} <= methods
 
 
 def test_dialog_no_global_config_save():
@@ -274,6 +277,23 @@ def test_preview_hidden_ring_not_drawn(monkeypatch):
     names = _added_mesh_names(plotter)
     assert "bep_ring_0" not in names
     assert "bep_ring_line_0" not in names
+
+
+def test_preview_hidden_bond_not_drawn(monkeypatch):
+    """A bond in cfg.bond_hidden must not draw, its atoms must stay."""
+    from blender_export_pro.style_config import StyleConfig
+
+    _fake_pv, plotter = _draw_preview(monkeypatch, StyleConfig())
+    all_bonds = sum(1 for n in _added_mesh_names(plotter)
+                    if n and n.startswith("bep_bond_"))
+
+    _fake_pv, plotter = _draw_preview(
+        monkeypatch, StyleConfig(bond_hidden={"0-6": True}))  # the C-Cl bond
+    names = _added_mesh_names(plotter)
+    bonds = sum(1 for n in names if n and n.startswith("bep_bond_"))
+    atoms = sum(1 for n in names if n and n.startswith("bep_atom_"))
+    assert bonds == all_bonds - 1
+    assert atoms == 7
 
 
 def test_apply_lighting_fill_and_rim_strengths(monkeypatch):

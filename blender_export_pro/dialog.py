@@ -486,13 +486,47 @@ class BlenderExportDialog(QDialog):
         self.bond_color_mode.addItems(BOND_COLOR_MODES)
         self.bond_color_mode.setToolTip(
             "atoms: each bond blends the colors of its two atoms · "
-            "single: one fixed color for every bond.")
+            "gradient: smooth color transition from atom to atom · "
+            "split: half one atom's color, half the other's (classic "
+            "ball-and-stick) · single: one fixed color for every bond.")
         form.addRow("Bond color:", self.bond_color_mode)
 
         self.bond_color = QLineEdit()
         self.bond_color.setPlaceholderText("#RRGGBB")
         self.bond_color.setToolTip("Bond color when the mode is 'single'.")
         form.addRow("Single bond color:", self.bond_color)
+
+        group = QGroupBox("Hide Specific Bonds")
+        gform = QFormLayout(group)
+        group.setToolTip(
+            "Hide individual bond cylinders while keeping both atoms — for "
+            "contacts or coordination the drawing shows but you don't want "
+            "rendered. Select the two (or more) atoms in the editor first.")
+
+        row = QHBoxLayout()
+        hide_bonds_btn = QPushButton("Hide Bonds in Selection")
+        hide_bonds_btn.setToolTip(
+            "Hide every bond whose BOTH atoms are currently selected.")
+        hide_bonds_btn.clicked.connect(self._hide_selected_bonds)
+        row.addWidget(hide_bonds_btn)
+
+        show_bonds_btn = QPushButton("Show Bonds in Selection")
+        show_bonds_btn.setToolTip(
+            "Un-hide every bond whose both atoms are currently selected.")
+        show_bonds_btn.clicked.connect(self._show_selected_bonds)
+        row.addWidget(show_bonds_btn)
+
+        reset_bonds_btn = QPushButton("Reset All")
+        reset_bonds_btn.setToolTip("Show every hidden bond again.")
+        reset_bonds_btn.clicked.connect(self._reset_hidden_bonds)
+        row.addWidget(reset_bonds_btn)
+        gform.addRow(row)
+
+        self.bond_hidden_label = QLabel()
+        gform.addRow(self.bond_hidden_label)
+        self._update_bond_hidden_label()
+
+        form.addRow(group)
 
         self._tabs.addTab(tab, "Bonds")
 
@@ -1307,6 +1341,75 @@ class BlenderExportDialog(QDialog):
         self._refresh_preview_if_active()
         self._context.show_status_message("All per-atom overrides reset.", 3000)
 
+    # ------------------------------------------------------------ bond tools
+
+    def _update_bond_hidden_label(self):
+        hidden = sorted(k for k, v in (self._cfg.bond_hidden or {}).items()
+                        if v)
+        if hidden:
+            shown = ", ".join(hidden[:10]) + ("…" if len(hidden) > 10 else "")
+            self.bond_hidden_label.setText(f"Hidden bonds: {shown}")
+        else:
+            self.bond_hidden_label.setText("No hidden bonds.")
+
+    def _bond_keys_in_selection(self):
+        """bond_key() of every molecule bond with both atoms selected."""
+        from .blender_codegen import bond_key
+
+        selected = self._selected_atoms_or_warn()
+        if selected is None:
+            return None
+        mol = self._context.current_molecule
+        if mol is None:
+            QMessageBox.information(self, "Blender Export Pro",
+                                    "No molecule is loaded.")
+            return None
+        sel = {int(i) for i in selected}
+        keys = []
+        try:
+            for bond in mol.GetBonds():
+                i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+                if i in sel and j in sel:
+                    keys.append(bond_key(i, j))
+        except Exception:
+            logging.exception("BlenderExportPro: bond lookup failed")
+            return None
+        if not keys:
+            QMessageBox.information(
+                self, "Blender Export Pro",
+                "No bonds run between the selected atoms — select both "
+                "endpoints of the bond(s) to hide.")
+            return None
+        return keys
+
+    def _hide_selected_bonds(self):
+        keys = self._bond_keys_in_selection()
+        if keys is None:
+            return
+        if not isinstance(self._cfg.bond_hidden, dict):
+            self._cfg.bond_hidden = {}
+        for key in keys:
+            self._cfg.bond_hidden[key] = True
+        self._update_bond_hidden_label()
+        self._refresh_preview_if_active()
+        self._context.show_status_message(f"Hid {len(keys)} bond(s).", 3000)
+
+    def _show_selected_bonds(self):
+        keys = self._bond_keys_in_selection()
+        if keys is None:
+            return
+        if isinstance(self._cfg.bond_hidden, dict):
+            for key in keys:
+                self._cfg.bond_hidden.pop(key, None)
+        self._update_bond_hidden_label()
+        self._refresh_preview_if_active()
+
+    def _reset_hidden_bonds(self):
+        self._cfg.bond_hidden = {}
+        self._update_bond_hidden_label()
+        self._refresh_preview_if_active()
+        self._context.show_status_message("All hidden bonds shown.", 3000)
+
     # ------------------------------------------------------------- lights
 
     def _refresh_lights_table(self):
@@ -1584,6 +1687,7 @@ class BlenderExportDialog(QDialog):
             self._refresh_lights_table()
             self._update_atom_override_label()
             self._update_element_color_label()
+            self._update_bond_hidden_label()
             # Applying a preset switches the 3D view to the styled preview
             # right away, so the effect is visible without extra clicks.
             self._activate_preview()
@@ -1599,6 +1703,7 @@ class BlenderExportDialog(QDialog):
             self._refresh_lights_table()
             self._update_atom_override_label()
             self._update_element_color_label()
+            self._update_bond_hidden_label()
             self._refresh_preview_if_active()
             self._context.show_status_message(
                 f"Preset loaded: {os.path.basename(path)}", 3000)
@@ -1618,6 +1723,7 @@ class BlenderExportDialog(QDialog):
         self._refresh_lights_table()
         self._update_atom_override_label()
         self._update_element_color_label()
+        self._update_bond_hidden_label()
         self._refresh_preview_if_active()
         self._context.show_status_message("Style reset to defaults.", 3000)
 

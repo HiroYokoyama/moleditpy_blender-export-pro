@@ -324,6 +324,79 @@ def test_specific_hidden_atom_hides_its_bonds():
             assert r["visible"] is False
 
 
+RED, BLUE = (1.0, 0.0, 0.0), (0.0, 0.0, 1.0)
+
+
+def test_bond_piecewise_modes():
+    start, end = (0.0, 0.0, 0.0), (2.0, 0.0, 0.0)
+
+    pieces = bc.bond_piecewise(StyleConfig(), start, end, RED, BLUE)
+    assert pieces == [(start, end, (0.5, 0.0, 0.5))]      # atoms = average
+
+    cfg = StyleConfig(bond_color_mode="single", bond_color="#00FF00")
+    pieces = bc.bond_piecewise(cfg, start, end, RED, BLUE)
+    assert pieces == [(start, end, (0.0, 1.0, 0.0))]
+
+    cfg = StyleConfig(bond_color_mode="split")
+    pieces = bc.bond_piecewise(cfg, start, end, RED, BLUE)
+    assert pieces == [(start, (1.0, 0.0, 0.0), RED),
+                      ((1.0, 0.0, 0.0), end, BLUE)]
+
+    cfg = StyleConfig(bond_color_mode="gradient")
+    pieces = bc.bond_piecewise(cfg, start, end, RED, BLUE)
+    assert len(pieces) == bc.GRADIENT_BOND_PIECES
+    assert pieces[0][0] == start and pieces[-1][1] == end
+    # slice midpoints interpolate red -> blue monotonically
+    blues = [c[2] for _s, _e, c in pieces]
+    assert blues == sorted(blues) and blues[0] < 0.5 < blues[-1]
+
+
+def test_bond_color_mode_scripts_compile():
+    mol = make_ethanol_like()
+    for mode in ("atoms", "gradient", "split", "single"):
+        script = bc.generate_script_from_mol(
+            mol, StyleConfig(bond_color_mode=mode))
+        compile(script, "<generated>", "exec")
+        assert "BOND_COLOR_MODE = %r" % mode in script
+    gradient_script = bc.generate_script_from_mol(
+        mol, StyleConfig(bond_color_mode="gradient"))
+    assert "make_gradient_material" in gradient_script
+    assert "ShaderNodeTexGradient" in gradient_script
+
+
+def test_bond_materials_are_named_per_color():
+    """Regression: a single shared 'Mat_x_bond' name froze every bond to
+    the first bond's color inside Blender."""
+    script = _generate()
+    assert '"Mat_%s_bond"' not in script
+    assert 'Mat_%s_bond_%s' in script
+
+
+def test_bond_key_is_sorted():
+    assert bc.bond_key(7, 3) == "3-7"
+    assert bc.bond_key(3, 7) == "3-7"
+
+
+def test_bond_hidden_marks_records_invisible():
+    atoms, bonds = bc.extract_geometry(make_ethanol_like())
+    cfg = StyleConfig(bond_hidden={"1-2": True, "0-3": False})
+    recs = bc._bond_records(bonds, cfg)
+    by_pair = {bc.bond_key(r["a"], r["b"]): r["visible"] for r in recs}
+    assert by_pair["1-2"] is False    # hidden
+    assert by_pair["0-3"] is True     # falsy value = not hidden
+    assert by_pair["0-1"] is True
+
+
+def test_bond_hidden_uses_original_indices_after_selection():
+    """Selection export remaps indices; hidden keys stay original."""
+    mol = make_ethanol_like()
+    cfg = StyleConfig(bond_hidden={"1-2": True})
+    script = bc.generate_script_from_mol(mol, cfg, selected_indices=[1, 2])
+    compile(script, "<generated>", "exec")
+    # the only surviving bond (C=O, original 1-2) must be invisible
+    assert "'visible': False" in script
+
+
 def test_custom_lights_list_populates_defaults():
     cfg = StyleConfig(custom_lights={"A": {"type": "SUN", "energy": 3.0}})
     lights = bc._custom_light_list(cfg)

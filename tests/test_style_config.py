@@ -140,6 +140,13 @@ def test_load_settings_bad_or_non_dict_json(tmp_path, monkeypatch):
     assert sc.load_settings() == {}
 
 
+def test_bond_hidden_round_trip():
+    cfg = StyleConfig(bond_hidden={"3-7": True, "0-1": True})
+    restored = StyleConfig()
+    restored.update_from_dict(cfg.to_dict())
+    assert restored.bond_hidden == {"3-7": True, "0-1": True}
+
+
 def test_ring_hide_fields_round_trip():
     cfg = StyleConfig(ring_hide_atoms=True, ring_hide_bonds=True,
                       ring_overrides={"0-1-2": {"hide_atoms": True}})

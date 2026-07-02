@@ -71,13 +71,23 @@ the machine running MoleditPy.
   samples and resolution.
 - **No-Blender export**: write a standard **glTF (.glb)** or **USD (.usda)**
   3D model that opens in Windows 3D Viewer, web viewers, PowerPoint, Blender,
-  Maya, etc. — for people who don't have Blender at all.
+  Maya, etc. — for people who don't have Blender at all. Ring plates,
+  outlines, anisotropic (jittered) atoms, bond colors and all hide options
+  export identically to the Blender script.
 - **Full color control**: recolor a whole element (all carbons, etc.),
   override individual atoms, and choose whether bonds blend their atoms'
   colors or use one fixed bond color.
 - **Bond detailing**: radius, cross-section segments, double/triple-bond
   rendering with adjustable spacing and an adjustable thickness factor for
   the parallel cylinders (aromatic rings like benzene included).
+- **Bond color modes**: blend the two atom colors, a smooth **gradient**
+  from atom to atom (true node-based gradient in Blender), a **half/half
+  split** at the bond midpoint (classic ball-and-stick), or one fixed
+  color — consistent across the preview, the Blender script and glTF/USD.
+- **Hide specific bonds**: select the bond's atoms and hide just that
+  bond cylinder (both atoms stay) — for contacts or coordination the
+  drawing contains but the render shouldn't show. Works in all exports
+  and is saved with the project.
 - **Consistent with the main app**: atom colors come from MoleditPy's own
   CPK color table (including your customizations) and radii from RDKit's
   van der Waals table — a scale of 0.3 reproduces the main app's

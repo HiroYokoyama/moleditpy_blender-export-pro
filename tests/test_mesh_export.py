@@ -206,6 +206,39 @@ def test_glb_opaque_ring_plate_has_no_blend_mode():
     assert not any("alphaMode" in m for m in gltf["materials"])
 
 
+def test_hidden_bonds_skipped_in_glb_and_usda():
+    atoms, bonds = me.extract_geometry(make_ethanol_like())
+    cfg = StyleConfig(bond_hidden={"1-2": True})
+    usda = me.build_usda(atoms, bonds, cfg)
+    assert usda.count("def Cylinder") == len(bonds) - 1
+
+    base = _parse_glb(me.build_glb(atoms, bonds, StyleConfig()))
+    trimmed = _parse_glb(me.build_glb(atoms, bonds, cfg))
+    def total_indices(gltf):
+        return sum(a["count"] for a in gltf["accessors"]
+                   if a["type"] == "SCALAR")
+    assert total_indices(trimmed) < total_indices(base)
+
+
+def test_glb_split_bonds_use_both_atom_colors():
+    """split mode: C-O bond halves join the C and O sphere color groups,
+    so no blended bond material remains."""
+    atoms, bonds = me.extract_geometry(make_ethanol_like())
+    blended = _parse_glb(me.build_glb(atoms, bonds, StyleConfig()))
+    split = _parse_glb(me.build_glb(
+        atoms, bonds, StyleConfig(bond_color_mode="split")))
+    # blend mode adds extra averaged bond colors; split reuses atom colors
+    assert len(split["materials"]) < len(blended["materials"])
+
+
+def test_usda_gradient_bonds_emit_slices():
+    atoms, bonds = me.extract_geometry(make_ethanol_like())
+    cfg = StyleConfig(bond_color_mode="gradient")
+    usda = me.build_usda(atoms, bonds, cfg)
+    from blender_export_pro.blender_codegen import GRADIENT_BOND_PIECES
+    assert usda.count("def Cylinder") == len(bonds) * GRADIENT_BOND_PIECES
+
+
 def test_usda_cylinder_degenerate_segment_is_empty():
     assert me._usda_cylinder("X", (0, 0, 0), (0, 0, 0), 0.1,
                              (1.0, 0.0, 0.0)) == []

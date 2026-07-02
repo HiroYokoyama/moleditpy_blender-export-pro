@@ -149,6 +149,38 @@ def resolve_bond_color(cfg: StyleConfig, color_a, color_b) -> list:
     return [round((color_a[k] + color_b[k]) / 2.0, 4) for k in range(3)]
 
 
+GRADIENT_BOND_PIECES = 4
+
+
+def bond_piecewise(cfg: StyleConfig, start, end, color_a, color_b) -> list:
+    """Bond as colored segments: [(seg_start, seg_end, color)].
+
+    Implements the bond color modes for renderers without per-object
+    materials: "split" = half/half at the midpoint, "gradient" =
+    GRADIENT_BOND_PIECES interpolated slices, "single"/"atoms" = one
+    segment. (The generated Blender script uses a true node-based
+    gradient instead of slices.)
+    """
+    def lerp_point(t):
+        return tuple(start[k] + (end[k] - start[k]) * t for k in range(3))
+
+    def lerp_color(t):
+        return tuple(round(color_a[k] + (color_b[k] - color_a[k]) * t, 4)
+                     for k in range(3))
+
+    mode = cfg.bond_color_mode
+    if mode == "split":
+        mid = lerp_point(0.5)
+        return [(tuple(start), mid, tuple(color_a)),
+                (mid, tuple(end), tuple(color_b))]
+    if mode == "gradient":
+        n = GRADIENT_BOND_PIECES
+        return [(lerp_point(p / n), lerp_point((p + 1) / n),
+                 lerp_color((p + 0.5) / n)) for p in range(n)]
+    color = tuple(resolve_bond_color(cfg, color_a, color_b))
+    return [(tuple(start), tuple(end), color)]
+
+
 def extract_geometry(mol, selected_indices=None):
     """Extract (atoms, bonds) from an RDKit-like Mol via duck-typing.
 
@@ -186,6 +218,19 @@ def extract_geometry(mol, selected_indices=None):
 def ring_key(indices) -> str:
     """Stable identifier for a ring: sorted atom indices, e.g. '0-1-2-3-4-5'."""
     return "-".join(str(i) for i in sorted(int(i) for i in indices))
+
+
+def bond_key(i, j) -> str:
+    """Stable identifier for a bond: sorted original atom indices, '3-7'."""
+    a, b = sorted((int(i), int(j)))
+    return "%d-%d" % (a, b)
+
+
+def hidden_bond_keys(cfg: StyleConfig) -> set:
+    """Keys of bonds the user hid explicitly (cfg.bond_hidden)."""
+    if isinstance(cfg.bond_hidden, dict):
+        return {str(k) for k, v in cfg.bond_hidden.items() if v}
+    return set()
 
 
 def extract_rings(mol, selected_indices=None, aromatic_only=True,
@@ -253,18 +298,23 @@ def _atom_records(atoms, cfg: StyleConfig, atom_keys=None, hidden_atoms=None):
 
 
 def _bond_records(bonds, cfg: StyleConfig, hide_bond_rings=None,
-                  hidden_endpoints=None):
+                  hidden_endpoints=None, atom_keys=None):
     """Per-bond records with a visibility flag.
 
     A bond is hidden if either endpoint is a fully-omitted atom
-    (*hidden_endpoints*, e.g. hydrogens) or both endpoints lie in a ring
-    whose internal bonds are hidden (*hide_bond_rings*).
+    (*hidden_endpoints*, e.g. hydrogens), both endpoints lie in a ring
+    whose internal bonds are hidden (*hide_bond_rings*), or the user hid
+    that specific bond (cfg.bond_hidden, keyed by original indices).
     """
     hide_rings = hide_bond_rings or []
     endpoints = hidden_endpoints or set()
+    hidden_keys = hidden_bond_keys(cfg)
     records = []
     for i, j, order in bonds:
+        orig_i = atom_keys[i] if atom_keys else i
+        orig_j = atom_keys[j] if atom_keys else j
         visible = (i not in endpoints and j not in endpoints
+                   and bond_key(orig_i, orig_j) not in hidden_keys
                    and not any(i in members and j in members
                                for members in hide_rings))
         records.append({
@@ -401,7 +451,8 @@ def generate_script(atoms, bonds, cfg: StyleConfig, rings=None,
     atom_data = pprint.pformat(
         _atom_records(atoms, cfg, atom_keys, hidden_atoms), indent=4)
     bond_data = pprint.pformat(
-        _bond_records(bonds, cfg, hide_bond_rings, endpoints), indent=4)
+        _bond_records(bonds, cfg, hide_bond_rings, endpoints, atom_keys),
+        indent=4)
     ring_data = pprint.pformat(
         _ring_records(atoms, rings, cfg, ring_keys), indent=4)
     generated_on = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -532,6 +583,59 @@ def make_material(name, rgb):
     return mat
 
 
+def _color_key(rgb):
+    return "_".join("%.3f" % c for c in rgb)
+
+
+def make_gradient_material(name, rgb_a, rgb_b):
+    """Material with a smooth color gradient along the bond axis.
+
+    Uses Generated coordinates (0..1 over the object's bounding box); the
+    cylinder's local Z is the bond axis, rotated onto the gradient's X.
+    """
+    mat = bpy.data.materials.get(name)
+    if mat:
+        return mat
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    tree = mat.node_tree
+    bsdf = None
+    for node in tree.nodes:
+        if node.type == "BSDF_PRINCIPLED":
+            bsdf = node
+            break
+    avg = [(rgb_a[k] + rgb_b[k]) / 2.0 for k in range(3)]
+    mat.diffuse_color = (avg[0], avg[1], avg[2], 1.0)
+    if bsdf is None:
+        return mat
+
+    tint = MAT_PARAMS.get("tint", [1.0, 1.0, 1.0])
+    rgb_a = [min(rgb_a[k] * tint[k], 1.0) for k in range(3)]
+    rgb_b = [min(rgb_b[k] * tint[k], 1.0) for k in range(3)]
+
+    coords = tree.nodes.new("ShaderNodeTexCoord")
+    mapping = tree.nodes.new("ShaderNodeMapping")
+    gradient = tree.nodes.new("ShaderNodeTexGradient")
+    ramp = tree.nodes.new("ShaderNodeValToRGB")
+    # rotate the vector so local Z (bond axis) drives the gradient's X
+    mapping.inputs["Rotation"].default_value = (0.0, math.radians(90.0), 0.0)
+    ramp.color_ramp.elements[0].color = (rgb_a[0], rgb_a[1], rgb_a[2], 1.0)
+    ramp.color_ramp.elements[1].color = (rgb_b[0], rgb_b[1], rgb_b[2], 1.0)
+    tree.links.new(coords.outputs["Generated"], mapping.inputs["Vector"])
+    tree.links.new(mapping.outputs["Vector"], gradient.inputs["Vector"])
+    tree.links.new(gradient.outputs["Fac"], ramp.inputs["Fac"])
+    tree.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+
+    _set_input(bsdf, ["Metallic"], MAT_PARAMS["metallic"])
+    _set_input(bsdf, ["Roughness"], MAT_PARAMS["roughness"])
+    _set_input(bsdf, ["Transmission Weight", "Transmission"], MAT_PARAMS["transmission"])
+    _set_input(bsdf, ["IOR"], MAT_PARAMS["ior"])
+    _set_input(bsdf, ["Subsurface Weight", "Subsurface"], MAT_PARAMS["subsurface"])
+    if MAT_PARAMS["transmission"] > 0.5 and hasattr(mat, "blend_method"):
+        mat.blend_method = "BLEND"
+    return mat
+
+
 def clear_scene():
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
@@ -625,7 +729,8 @@ def _perpendicular(direction):
     return direction.cross(axis).normalized()
 
 
-def create_bond_segment(coll, name, start, end, radius, color):
+def create_bond_segment(coll, name, start, end, radius, color,
+                        gradient_to=None):
     direction = end - start
     length = direction.length
     if length < 1e-6:
@@ -651,7 +756,15 @@ def create_bond_segment(coll, name, start, end, radius, color):
         obj.rotation_mode = "QUATERNION"
         obj.rotation_quaternion = direction.to_track_quat("Z", "Y")
 
-    mat = make_material("Mat_%s_bond" % MAT_PRESET, color)
+    if gradient_to is not None:
+        mat = make_gradient_material(
+            "Mat_%s_grad_%s_%s" % (MAT_PRESET, _color_key(color),
+                                   _color_key(gradient_to)),
+            color, gradient_to)
+    else:
+        # one material per color (a shared name would freeze the first color)
+        mat = make_material(
+            "Mat_%s_bond_%s" % (MAT_PRESET, _color_key(color)), color)
     if obj.data and hasattr(obj.data, "materials"):
         obj.data.materials.append(mat)
     link_to(coll, obj)
@@ -665,10 +778,13 @@ def create_bond(coll, index, rec):
     b = ATOMS[rec["b"]]
     start = Vector(a["pos"])
     end = Vector(b["pos"])
+    color_a = list(a["color"])
+    color_b = list(b["color"])
     if BOND_COLOR_MODE == "single":
-        color = list(BOND_COLOR)
-    else:
-        color = [(a["color"][k] + b["color"][k]) / 2.0 for k in range(3)]
+        color_a = color_b = list(BOND_COLOR)
+    elif BOND_COLOR_MODE not in ("split", "gradient"):
+        avg = [(color_a[k] + color_b[k]) / 2.0 for k in range(3)]
+        color_a = color_b = avg
     order = rec["order"]
 
     if order <= 1:
@@ -681,11 +797,21 @@ def create_bond(coll, index, rec):
     direction = (end - start).normalized()
     perp = _perpendicular(direction)
     radius = BOND_RADIUS if order <= 1 else BOND_RADIUS * MULTI_BOND_SCALE
+    mid = (start + end) / 2.0
     for k, off in enumerate(offsets):
         shift = perp * off
-        create_bond_segment(
-            coll, "Bond_%03d_%d" % (index, k), start + shift, end + shift,
-            radius, color)
+        name = "Bond_%03d_%d" % (index, k)
+        if BOND_COLOR_MODE == "split" and color_a != color_b:
+            create_bond_segment(coll, name + "a", start + shift, mid + shift,
+                                radius, color_a)
+            create_bond_segment(coll, name + "b", mid + shift, end + shift,
+                                radius, color_b)
+        elif BOND_COLOR_MODE == "gradient" and color_a != color_b:
+            create_bond_segment(coll, name, start + shift, end + shift,
+                                radius, color_a, gradient_to=color_b)
+        else:
+            create_bond_segment(coll, name, start + shift, end + shift,
+                                radius, color_a)
 
 
 def make_ring_material(name, rgb, alpha):

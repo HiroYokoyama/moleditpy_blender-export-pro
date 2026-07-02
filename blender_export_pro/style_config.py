@@ -22,7 +22,7 @@ MATERIAL_PRESETS = (
 SCENE_PRESETS = ("none", "studio", "dark")
 BACKGROUND_MODES = ("preset", "color", "hdri", "transparent")
 RENDER_ENGINES = ("keep", "cycles", "eevee")
-BOND_COLOR_MODES = ("atoms", "single")
+BOND_COLOR_MODES = ("atoms", "gradient", "split", "single")
 LIGHT_TYPES = ("AREA", "POINT", "SUN", "SPOT")
 
 
@@ -78,11 +78,14 @@ class StyleConfig:
     bond_segments: int = 24
     show_multiple_bonds: bool = True
     multi_bond_offset: float = 0.18
-    bond_color_mode: str = "atoms"   # "atoms" = average of the two atoms
+    bond_color_mode: str = "atoms"   # atoms | gradient | split | single
     bond_color: str = "#808080"      # used when bond_color_mode == "single"
     # Radius factor on each cylinder of a double/triple (e.g. aromatic ring)
     # bond, relative to bond_radius. 1.0 = same thickness as single bonds.
     multi_bond_scale: float = 0.7
+    # Specific bonds to hide, keyed by sorted original atom indices
+    # ("3-7": True). Atoms stay; only the bond cylinder is omitted.
+    bond_hidden: dict = field(default_factory=dict)
 
     # Rings (benzene etc. drawn as filled polygon panels/plates and/or a
     # perimeter line — the classic hexagon outline)

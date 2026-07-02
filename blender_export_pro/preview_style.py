@@ -9,10 +9,13 @@ import logging
 
 from .blender_codegen import (
     _custom_light_list,
+    bond_key,
+    bond_piecewise,
     extract_geometry,
     extract_rings,
     hex_to_rgb,
     hidden_atom_indices,
+    hidden_bond_keys,
     resolve_atom_color,
     resolve_atom_radius,
     resolve_ring_style,
@@ -243,8 +246,11 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
         )
 
     bond_radius = max(cfg.bond_radius, 0.01)
+    hidden_bonds = hidden_bond_keys(cfg)
     for idx, (i, j, order) in enumerate(bonds):
         if i in hidden_endpoints or j in hidden_endpoints:
+            continue
+        if bond_key(i, j) in hidden_bonds:
             continue
         if any(i in members and j in members for members in hide_bond_rings):
             continue
@@ -254,11 +260,10 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
         if length < 1e-6:
             continue
         direction = direction / length
-        color = tuple(
-            (a + b) / 2.0
-            for a, b in zip(_atom_color(atoms[i][0], cfg, i),
-                            _atom_color(atoms[j][0], cfg, j))
-        )
+        pieces = bond_piecewise(
+            cfg, tuple(start), tuple(end),
+            _atom_color(atoms[i][0], cfg, i),
+            _atom_color(atoms[j][0], cfg, j))
 
         if order > 1 and cfg.show_multiple_bonds:
             ref = np.array([0.0, 0.0, 1.0])
@@ -278,21 +283,27 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
 
         for k, off in enumerate(offsets):
             shift = perp * off
-            cyl = pv.Cylinder(
-                center=(start + end) / 2.0 + shift,
-                direction=direction,
-                radius=radius,
-                height=length,
-                resolution=max(6, cfg.bond_segments),
-            )
-            _displace(cyl, cfg, rng)
-            plotter.add_mesh(
-                cyl,
-                color=color,
-                name=f"bep_bond_{idx}_{k}",
-                smooth_shading=cfg.shade_smooth,
-                **mat,
-            )
+            for p, (seg_start, seg_end, seg_color) in enumerate(pieces):
+                seg_start = np.asarray(seg_start) + shift
+                seg_end = np.asarray(seg_end) + shift
+                seg_len = float(np.linalg.norm(seg_end - seg_start))
+                if seg_len < 1e-6:
+                    continue
+                cyl = pv.Cylinder(
+                    center=(seg_start + seg_end) / 2.0,
+                    direction=direction,
+                    radius=radius,
+                    height=seg_len,
+                    resolution=max(6, cfg.bond_segments),
+                )
+                _displace(cyl, cfg, rng)
+                plotter.add_mesh(
+                    cyl,
+                    color=seg_color,
+                    name=f"bep_bond_{idx}_{k}_{p}",
+                    smooth_shading=cfg.shade_smooth,
+                    **mat,
+                )
 
     if ring_panels_enabled(cfg) or ring_outlines_enabled(cfg):
         _draw_ring_panels(plotter, mol, atoms, positions, cfg)
