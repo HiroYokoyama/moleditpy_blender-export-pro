@@ -82,6 +82,59 @@ def test_preview_material_kwargs_never_collide_with_add_mesh_args():
         assert not reserved & set(kwargs), (preset, kwargs)
 
 
+def test_apply_lighting_uses_config_lights(monkeypatch):
+    """Preview lighting must mirror the configured lights on the plotter."""
+    import types
+    from unittest.mock import MagicMock
+
+    import numpy as np_real
+    from blender_export_pro import preview_style
+    from blender_export_pro.style_config import StyleConfig
+
+    fake_pv = types.SimpleNamespace(Light=MagicMock())
+    monkeypatch.setattr(preview_style, "pv", fake_pv)
+    monkeypatch.setattr(preview_style, "np", np_real)
+
+    center = np_real.zeros(3)
+
+    # default: key-light rig = 3 lights
+    plotter = MagicMock()
+    preview_style._apply_lighting(plotter, StyleConfig(), center, 5.0)
+    assert plotter.add_light.call_count == 3
+    plotter.remove_all_lights.assert_called_once()
+
+    # custom lights: one add_light per configured light, with color+intensity
+    plotter = MagicMock()
+    fake_pv.Light.reset_mock()
+    cfg = StyleConfig(use_custom_lights=True, custom_lights={
+        "A": {"energy": 2000.0, "color": "#FF0000"},
+        "B": {"energy": 500.0},
+    })
+    preview_style._apply_lighting(plotter, cfg, center, 5.0)
+    assert plotter.add_light.call_count == 2
+    intensities = [c.kwargs["intensity"] for c in fake_pv.Light.call_args_list]
+    assert intensities == [2.0, 0.5]
+    assert fake_pv.Light.call_args_list[0].kwargs["color"] == (1.0, 0.0, 0.0)
+
+
+def test_apply_lighting_falls_back_to_lightkit(monkeypatch):
+    import types
+    from unittest.mock import MagicMock
+
+    import numpy as np_real
+    from blender_export_pro import preview_style
+    from blender_export_pro.style_config import StyleConfig
+
+    def boom(**_kw):
+        raise RuntimeError("no lights")
+
+    monkeypatch.setattr(preview_style, "pv", types.SimpleNamespace(Light=boom))
+    monkeypatch.setattr(preview_style, "np", np_real)
+    plotter = MagicMock()
+    preview_style._apply_lighting(plotter, StyleConfig(), np_real.zeros(3), 5.0)
+    plotter.enable_lightkit.assert_called_once()
+
+
 def test_ensure_lighting_resets_lightkit():
     """After clear() the preview must restore lights (else flat 'planes')."""
     from unittest.mock import MagicMock

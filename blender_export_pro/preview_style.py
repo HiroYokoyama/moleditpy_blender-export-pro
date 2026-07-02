@@ -8,6 +8,7 @@ colors, jitter and noise displacement, so users can iterate before exporting.
 import logging
 
 from .blender_codegen import (
+    _custom_light_list,
     extract_geometry,
     extract_rings,
     hex_to_rgb,
@@ -93,6 +94,54 @@ def _ensure_lighting(plotter) -> None:
         logging.debug("BlenderExportPro: enable_lightkit failed", exc_info=True)
 
 
+def _light_direction(azimuth_deg, elevation_deg):
+    """Unit direction from azimuth/elevation — same convention as codegen."""
+    import math
+    az, el = math.radians(azimuth_deg), math.radians(elevation_deg)
+    return np.array([math.cos(el) * math.sin(az),
+                     -math.cos(el) * math.cos(az),
+                     math.sin(el)])
+
+
+def _apply_lighting(plotter, cfg: StyleConfig, center, size) -> None:
+    """Light the preview to match the exported Blender scene.
+
+    Mirrors the key-light azimuth/elevation/strength and, when enabled,
+    the custom light list (per-light position, intensity and color).
+    Falls back to the standard light kit if anything goes wrong.
+    """
+    try:
+        plotter.remove_all_lights()
+
+        def add(direction_deg, distance_scale, intensity, color=(1, 1, 1)):
+            direction = _light_direction(*direction_deg)
+            pos = center + direction * size * distance_scale
+            light = pv.Light(position=tuple(pos), focal_point=tuple(center),
+                             color=tuple(color),
+                             intensity=max(0.0, min(float(intensity), 3.0)))
+            plotter.add_light(light)
+
+        if cfg.use_custom_lights and isinstance(cfg.custom_lights, dict) \
+                and cfg.custom_lights:
+            for spec in _custom_light_list(cfg):
+                # Blender energies are ~watts; normalize 1000 W -> 1.0.
+                add((spec["azimuth"], spec["elevation"]), spec["distance"],
+                    spec["energy"] / 1000.0, spec["color"])
+        else:
+            key_dir = (cfg.key_light_azimuth, cfg.key_light_elevation)
+            strength = cfg.key_light_strength
+            dist = cfg.light_distance_scale
+            add(key_dir, dist, 1.0 * strength)
+            add((cfg.key_light_azimuth + 180.0, cfg.key_light_elevation * 0.5),
+                dist, 0.3 * strength)
+            add((cfg.key_light_azimuth + 135.0, cfg.key_light_elevation),
+                dist, 0.5 * strength)
+    except Exception:
+        logging.exception("BlenderExportPro: styled lighting failed, "
+                          "falling back to light kit")
+        _ensure_lighting(plotter)
+
+
 def _displace(mesh, cfg: StyleConfig, rng) -> None:
     """Cheap noise displacement along normals to mimic the Displace modifier."""
     if cfg.deformation_noise <= 0.0:
@@ -146,13 +195,17 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
     hidden_endpoints = hidden_atom_indices(atoms, cfg)
     hidden_atoms |= hidden_endpoints
 
+    positions = np.array([pos for _s, pos in atoms])
+    center = positions.mean(axis=0)
+    spans = positions.max(axis=0) - positions.min(axis=0)
+    size = float(max(spans.max(), 1.0))
+
     try:
         plotter.clear()
     except Exception:
         logging.debug("BlenderExportPro: plotter.clear failed", exc_info=True)
-    _ensure_lighting(plotter)
+    _apply_lighting(plotter, cfg, center, size)
 
-    positions = np.array([pos for _s, pos in atoms])
     for idx, (symbol, pos) in enumerate(atoms):
         if idx in hidden_atoms:
             continue
