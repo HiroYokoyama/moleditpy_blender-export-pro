@@ -48,6 +48,8 @@ class StyleConfig:
     atom_overrides: dict = field(default_factory=dict)
     # Per-atom color overrides: {index_str: "#RRGGBB"}.
     atom_color_overrides: dict = field(default_factory=dict)
+    # Specific atoms to hide entirely (sphere + bonds): {index_str: True}.
+    atom_hidden: dict = field(default_factory=dict)
 
     # Labels (3D text objects for atom symbols / indices)
     label_mode: str = "none"         # none | symbol | symbol_index | index

@@ -11,7 +11,7 @@ from .blender_codegen import (
     extract_geometry,
     extract_rings,
     hex_to_rgb,
-    hidden_hydrogen_indices,
+    hidden_atom_indices,
     resolve_atom_color,
     resolve_atom_radius,
     resolve_ring_style,
@@ -142,8 +142,8 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
         except Exception:
             logging.exception("BlenderExportPro: ring-hide computation failed")
 
-    # Hydrogens can be omitted entirely (atom sphere + every bond to it).
-    hidden_endpoints = hidden_hydrogen_indices(atoms, cfg)
+    # Hydrogens / specific atoms omitted entirely (sphere + every bond to it).
+    hidden_endpoints = hidden_atom_indices(atoms, cfg)
     hidden_atoms |= hidden_endpoints
 
     try:

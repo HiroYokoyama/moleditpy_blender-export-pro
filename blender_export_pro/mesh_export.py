@@ -15,7 +15,7 @@ import struct
 from .blender_codegen import (
     extract_geometry,
     extract_rings,
-    hidden_hydrogen_indices,
+    hidden_atom_indices,
     resolve_atom_color,
     resolve_atom_radius,
     resolve_bond_color,
@@ -174,10 +174,10 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
             groups[key] = (_ColorGroup(), tuple(rgb))
         return groups[key][0]
 
-    hidden_atoms, hide_bond_rings = ring_hidden_geometry(
+    ring_hidden, hide_bond_rings = ring_hidden_geometry(
         cfg, rings or [], ring_keys)
-    hidden_atoms = set(hidden_atoms) | hidden_hydrogen_indices(atoms, cfg)
-    hydrogens = hidden_hydrogen_indices(atoms, cfg)
+    endpoints = hidden_atom_indices(atoms, cfg, atom_keys)
+    hidden_atoms = set(ring_hidden) | endpoints
 
     colors = []
     for pos_idx, (symbol, pos) in enumerate(atoms):
@@ -191,7 +191,7 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
         group_for(rgb).add(sphere[0], sphere[1], sphere[2], t, lambda n: n)
 
     for i, j, _order in bonds:
-        if i in hydrogens or j in hydrogens:
+        if i in endpoints or j in endpoints:
             continue
         if any(i in members and j in members for members in hide_bond_rings):
             continue
@@ -308,10 +308,10 @@ def build_glb(atoms, bonds, cfg: StyleConfig, atom_keys=None,
 def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None,
                rings=None, ring_keys=None) -> str:
     """Return an ASCII USD (.usda) document using native Sphere/Cylinder prims."""
-    hidden_atoms, hide_bond_rings = ring_hidden_geometry(
+    ring_hidden, hide_bond_rings = ring_hidden_geometry(
         cfg, rings or [], ring_keys)
-    hidden_atoms = set(hidden_atoms) | hidden_hydrogen_indices(atoms, cfg)
-    hydrogens = hidden_hydrogen_indices(atoms, cfg)
+    endpoints = hidden_atom_indices(atoms, cfg, atom_keys)
+    hidden_atoms = set(ring_hidden) | endpoints
 
     lines = [
         '#usda 1.0',
@@ -346,7 +346,7 @@ def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None,
         ]
 
     for bidx, (i, j, _order) in enumerate(bonds):
-        if i in hydrogens or j in hydrogens:
+        if i in endpoints or j in endpoints:
             continue
         if any(i in members and j in members for members in hide_bond_rings):
             continue

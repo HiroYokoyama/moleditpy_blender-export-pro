@@ -266,6 +266,21 @@ def hidden_hydrogen_indices(atoms, cfg: StyleConfig):
     return {idx for idx, (symbol, _pos) in enumerate(atoms) if symbol == "H"}
 
 
+def hidden_atom_indices(atoms, cfg: StyleConfig, atom_keys=None):
+    """Export-order indices of atoms omitted entirely (sphere + all bonds).
+
+    Combines the global 'omit hydrogens' option with specific atoms the user
+    hid by original RDKit index (cfg.atom_hidden).
+    """
+    hidden = hidden_hydrogen_indices(atoms, cfg)
+    if isinstance(cfg.atom_hidden, dict) and cfg.atom_hidden:
+        for pos_idx, _atom in enumerate(atoms):
+            orig = atom_keys[pos_idx] if atom_keys else pos_idx
+            if str(orig) in cfg.atom_hidden:
+                hidden.add(pos_idx)
+    return hidden
+
+
 def resolve_ring_style(cfg: StyleConfig, key: str) -> dict:
     """Effective style values for one ring: globals + per-ring override."""
     override = {}
@@ -355,12 +370,12 @@ def generate_script(atoms, bonds, cfg: StyleConfig, rings=None,
         params["roughness"] = min(cfg.roughness_override, 1.0)
 
     hidden_atoms, hide_bond_rings = ring_hidden_geometry(cfg, rings, ring_keys)
-    hydrogens = hidden_hydrogen_indices(atoms, cfg)
-    hidden_atoms = set(hidden_atoms) | hydrogens
+    endpoints = hidden_atom_indices(atoms, cfg, atom_keys)
+    hidden_atoms = set(hidden_atoms) | endpoints
     atom_data = json.dumps(
         _atom_records(atoms, cfg, atom_keys, hidden_atoms), indent=1)
     bond_data = json.dumps(
-        _bond_records(bonds, cfg, hide_bond_rings, hydrogens), indent=1)
+        _bond_records(bonds, cfg, hide_bond_rings, endpoints), indent=1)
     ring_data = json.dumps(_ring_records(atoms, rings, cfg, ring_keys), indent=1)
 
     generated_on = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
