@@ -25,9 +25,13 @@ the machine running MoleditPy.
   custom-colored or matched to the ring atoms (aromatic-only or all small
   rings).
 - **Per-ring styling**: a table on the Rings tab lists every detected ring;
-  each row has its own show/hide, color, opacity, thickness and size
-  controls. Selecting a row highlights that ring in the 3D preview with a
-  bright outline. Per-ring overrides are saved with the project.
+  each row has its own panel show/hide, atoms show/hide, color, opacity,
+  thickness and size controls. Selecting a row highlights that ring in the
+  3D preview with a bright outline. Per-ring overrides are saved with the
+  project.
+- **Show the plate only**: hide the atoms (and optionally the internal
+  bonds) of paneled rings — globally or per ring — for clean aromatic-ring
+  figures.
 - **Deformation**: noise displacement (`Displace` + clouds texture), bend /
   twist (`SimpleDeform`), subdivision smoothing, per-atom squash & stretch.
 - **18 material presets**: matte, plastic, metal, glass, toon, clay, chrome,

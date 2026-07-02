@@ -79,6 +79,16 @@ def test_label_and_color_override_round_trip():
     assert restored.atom_color_overrides == {"1": "#123456"}
 
 
+def test_ring_hide_fields_round_trip():
+    cfg = StyleConfig(ring_hide_atoms=True, ring_hide_bonds=True,
+                      ring_overrides={"0-1-2": {"hide_atoms": True}})
+    restored = StyleConfig()
+    restored.update_from_dict(cfg.to_dict())
+    assert restored.ring_hide_atoms is True
+    assert restored.ring_hide_bonds is True
+    assert restored.ring_overrides == {"0-1-2": {"hide_atoms": True}}
+
+
 def test_ring_overrides_round_trip():
     cfg = StyleConfig(ring_overrides={"0-1-2": {"visible": False, "opacity": 0.7}})
     restored = StyleConfig()
