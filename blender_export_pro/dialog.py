@@ -40,7 +40,9 @@ from .style_config import (
     ATOM_SHAPES,
     BACKGROUND_MODES,
     BLENDER_TARGETS,
+    BOND_COLOR_MODES,
     BOND_STYLES,
+    IMAGE_FORMATS,
     LABEL_MODES,
     MATERIAL_PRESETS,
     RENDER_ENGINES,
@@ -294,6 +296,18 @@ class BlenderExportDialog(QDialog):
             0.02, 1.0, 0.02, "Spacing between the parallel cylinders.")
         form.addRow("Multi-bond offset (Å):", self.multi_bond_offset)
 
+        self.bond_color_mode = QComboBox()
+        self.bond_color_mode.addItems(BOND_COLOR_MODES)
+        self.bond_color_mode.setToolTip(
+            "atoms: each bond blends the colors of its two atoms · "
+            "single: one fixed color for every bond.")
+        form.addRow("Bond color:", self.bond_color_mode)
+
+        self.bond_color = QLineEdit()
+        self.bond_color.setPlaceholderText("#RRGGBB")
+        self.bond_color.setToolTip("Bond color when the mode is 'single'.")
+        form.addRow("Single bond color:", self.bond_color)
+
         self._tabs.addTab(tab, "Bonds")
 
     def _build_rings_tab(self):
@@ -451,6 +465,35 @@ class BlenderExportDialog(QDialog):
             "1 = fully matte.")
         form.addRow("Roughness override:", self.roughness_override)
 
+        group = QGroupBox("Element Colors")
+        gform = QFormLayout(group)
+        group.setToolTip(
+            "Recolor a whole element everywhere (e.g. all carbons). Leave "
+            "empty to use the main app's CPK colors.")
+
+        row = QHBoxLayout()
+        self.element_symbol = QLineEdit()
+        self.element_symbol.setPlaceholderText("e.g. C")
+        self.element_symbol.setMaxLength(3)
+        self.element_symbol.setToolTip("Element symbol to recolor.")
+        row.addWidget(self.element_symbol)
+        self.element_color = QLineEdit()
+        self.element_color.setPlaceholderText("#RRGGBB")
+        row.addWidget(self.element_color)
+        set_btn = QPushButton("Set")
+        set_btn.clicked.connect(self._set_element_color)
+        row.addWidget(set_btn)
+        gform.addRow("Element / color:", row)
+
+        self.element_color_label = QLabel()
+        gform.addRow(self.element_color_label)
+
+        clear_btn = QPushButton("Clear Element Colors")
+        clear_btn.clicked.connect(self._clear_element_colors)
+        gform.addRow(clear_btn)
+        form.addRow(group)
+        self._update_element_color_label()
+
         self._tabs.addTab(tab, "Material")
 
     def _build_labels_tab(self):
@@ -574,6 +617,30 @@ class BlenderExportDialog(QDialog):
             box.setToolTip("Output resolution (applied when engine ≠ keep).")
         form.addRow("Resolution:", row)
 
+        self.render_on_run = QCheckBox("Render an image when the script runs")
+        self.render_on_run.setToolTip(
+            "The script saves a rendered image automatically — no need to "
+            "press F12 in Blender. Great for headless/batch rendering: "
+            "blender -b -P script.py")
+        form.addRow(self.render_on_run)
+
+        row = QHBoxLayout()
+        self.render_output_path = QLineEdit()
+        self.render_output_path.setPlaceholderText("output image path")
+        self.render_output_path.setToolTip(
+            "Where the rendered image is written. For turntable animations "
+            "this is the frame-name prefix.")
+        row.addWidget(self.render_output_path)
+        out_btn = QPushButton("Browse…")
+        out_btn.clicked.connect(self._browse_render_output)
+        row.addWidget(out_btn)
+        form.addRow("Image output:", row)
+
+        self.image_format = QComboBox()
+        self.image_format.addItems(IMAGE_FORMATS)
+        self.image_format.setToolTip("Output image file format.")
+        form.addRow("Image format:", self.image_format)
+
         self._tabs.addTab(tab, "Scene")
 
     def _build_export_tab(self):
@@ -653,6 +720,8 @@ class BlenderExportDialog(QDialog):
         ("bond_segments", "int"),
         ("show_multiple_bonds", "bool"),
         ("multi_bond_offset", "float"),
+        ("bond_color_mode", "combo"),
+        ("bond_color", "text"),
         ("ring_style", "combo"),
         ("ring_aromatic_only", "bool"),
         ("ring_scale", "float"),
@@ -687,6 +756,9 @@ class BlenderExportDialog(QDialog):
         ("render_samples", "int"),
         ("resolution_x", "int"),
         ("resolution_y", "int"),
+        ("render_on_run", "bool"),
+        ("render_output_path", "text"),
+        ("image_format", "combo"),
         ("blender_target", "combo"),
         ("clear_scene", "bool"),
         ("collection_name", "text"),
@@ -765,6 +837,45 @@ class BlenderExportDialog(QDialog):
             if idx >= 0:
                 self.background_mode.setCurrentIndex(idx)
             self._on_setting_changed()
+
+    def _browse_render_output(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Rendered Image Output", "render.png",
+            "Images (*.png *.jpg *.jpeg *.tif *.exr *.webp);;All files (*)")
+        if path:
+            self.render_output_path.setText(path)
+            self.render_on_run.setChecked(True)
+            self._on_setting_changed()
+
+    # -------------------------------------------------------- element colors
+
+    def _update_element_color_label(self):
+        count = len(self._cfg.element_colors or {})
+        if count:
+            pairs = ", ".join(f"{k}={v}" for k, v in
+                              list(self._cfg.element_colors.items())[:6])
+            self.element_color_label.setText(f"Overrides: {pairs}")
+        else:
+            self.element_color_label.setText("No element color overrides.")
+
+    def _set_element_color(self):
+        symbol = self.element_symbol.text().strip()
+        color = self.element_color.text().strip()
+        if not symbol or not color:
+            return
+        symbol = symbol[0].upper() + symbol[1:].lower()
+        if not isinstance(self._cfg.element_colors, dict):
+            self._cfg.element_colors = {}
+        self._cfg.element_colors[symbol] = color
+        self._update_element_color_label()
+        self._refresh_preview_if_active()
+        self._context.show_status_message(
+            f"Element color set: {symbol} = {color}", 3000)
+
+    def _clear_element_colors(self):
+        self._cfg.element_colors = {}
+        self._update_element_color_label()
+        self._refresh_preview_if_active()
 
     # ------------------------------------------------------ atom size tools
 
@@ -994,6 +1105,7 @@ class BlenderExportDialog(QDialog):
             self._refresh_widgets()
             self._refresh_ring_table()
             self._update_atom_override_label()
+            self._update_element_color_label()
             self._refresh_preview_if_active()
             self._context.show_status_message(f"Preset applied: {name}", 3000)
 
@@ -1002,6 +1114,9 @@ class BlenderExportDialog(QDialog):
             self, "Load Preset", "", "JSON preset (*.json)")
         if path and sc.load_preset(self._cfg, path):
             self._refresh_widgets()
+            self._refresh_ring_table()
+            self._update_atom_override_label()
+            self._update_element_color_label()
             self._refresh_preview_if_active()
             self._context.show_status_message(
                 f"Preset loaded: {os.path.basename(path)}", 3000)
@@ -1019,6 +1134,7 @@ class BlenderExportDialog(QDialog):
         self._refresh_widgets()
         self._refresh_ring_table()
         self._update_atom_override_label()
+        self._update_element_color_label()
         self._refresh_preview_if_active()
         self._context.show_status_message("Style reset to defaults.", 3000)
 
