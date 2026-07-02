@@ -117,7 +117,7 @@ def _apply_lighting(plotter, cfg: StyleConfig, center, size) -> None:
     try:
         plotter.remove_all_lights()
 
-        def add(direction_deg, distance_scale, intensity, color=(1, 1, 1)):
+        def add(direction_deg, distance_scale, intensity, color=(1.0, 1.0, 1.0)):
             direction = _light_direction(*direction_deg)
             pos = center + direction * size * distance_scale
             light = pv.Light(position=tuple(pos), focal_point=tuple(center),
