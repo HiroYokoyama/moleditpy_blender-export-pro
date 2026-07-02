@@ -140,6 +140,12 @@ def _apply_lighting(plotter, cfg: StyleConfig, center, size) -> None:
                 dist, 0.3 * strength)
             add((cfg.key_light_azimuth + 135.0, cfg.key_light_elevation),
                 dist, 0.5 * strength)
+        
+        if hasattr(plotter, "set_environment_texture") and hasattr(pv, "cubemap"):
+            try:
+                plotter.set_environment_texture(pv.cubemap())
+            except Exception:
+                pass
     except Exception:
         logging.exception("BlenderExportPro: styled lighting failed, "
                           "falling back to light kit")

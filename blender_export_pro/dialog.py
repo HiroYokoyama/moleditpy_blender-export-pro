@@ -25,6 +25,8 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
+    QFrame,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -79,8 +81,12 @@ class BlenderExportDialog(QDialog):
         layout.addWidget(self.advanced_toggle)
 
         self._tabs = QTabWidget(self)
-        self._tabs.setVisible(False)
-        layout.addWidget(self._tabs)
+        self._scroll = QScrollArea(self)
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setWidget(self._tabs)
+        self._scroll.setVisible(False)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        layout.addWidget(self._scroll)
 
         self._build_atoms_tab()
         self._build_bonds_tab()
@@ -154,7 +160,7 @@ class BlenderExportDialog(QDialog):
         return box
 
     def _toggle_advanced(self, checked: bool) -> None:
-        self._tabs.setVisible(checked)
+        self._scroll.setVisible(checked)
         self.advanced_toggle.setText(
             "Advanced Settings  ▾" if checked else "Advanced Settings  ▸")
         if not checked:
