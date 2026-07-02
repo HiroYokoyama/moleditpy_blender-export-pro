@@ -14,6 +14,7 @@ from .blender_codegen import (
     resolve_atom_color,
     resolve_atom_radius,
     resolve_ring_style,
+    ring_hidden_geometry,
     ring_key,
 )
 from .style_config import StyleConfig
@@ -130,6 +131,15 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
     mat = _material_kwargs(cfg)
     resolution = 12 if cfg.atom_shape == "ico_sphere" else 24
 
+    # Atoms/bonds of paneled rings can be hidden (show the plate only).
+    hidden_atoms, hide_bond_rings = ({}, [])
+    if cfg.ring_style == "panel":
+        try:
+            hidden_atoms, hide_bond_rings = ring_hidden_geometry(
+                cfg, extract_rings(mol, None, cfg.ring_aromatic_only))
+        except Exception:
+            logging.exception("BlenderExportPro: ring-hide computation failed")
+
     try:
         plotter.clear()
     except Exception:
@@ -138,6 +148,8 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
 
     positions = np.array([pos for _s, pos in atoms])
     for idx, (symbol, pos) in enumerate(atoms):
+        if idx in hidden_atoms:
+            continue
         radius = resolve_atom_radius(cfg, symbol, idx)
         sphere = pv.Sphere(
             radius=radius,
@@ -161,6 +173,8 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
 
     bond_radius = max(cfg.bond_radius, 0.01)
     for idx, (i, j, order) in enumerate(bonds):
+        if any(i in members and j in members for members in hide_bond_rings):
+            continue
         start, end = positions[i], positions[j]
         direction = end - start
         length = float(np.linalg.norm(direction))
