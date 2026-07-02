@@ -47,6 +47,39 @@ def test_unit_primitives_wound_counter_clockwise_outward():
         assert n[0] * c[0] + n[1] * c[1] > 0.0             # radially outward
 
 
+def test_glb_atom_jitter_makes_spheres_anisotropic():
+    import random
+    atoms = [("C", (0.0, 0.0, 0.0))]
+    cfg = StyleConfig(atom_radius_mode="uniform", uniform_radius=1.0,
+                      atom_jitter=0.8)
+    (group, _rgba), = me.build_color_groups(atoms, [], cfg).values()
+
+    # jitter draws three axis factors in order from the seeded rng
+    rng = random.Random(42)
+    expected = tuple(1.0 + rng.uniform(-0.8, 0.8) * 0.5 for _ in range(3))
+    for axis in range(3):
+        coords = [v[axis] for v in group.positions]
+        half_extent = (max(coords) - min(coords)) / 2.0
+        assert abs(half_extent - expected[axis]) < 1e-9
+
+    # without jitter the sphere stays perfectly round
+    cfg = StyleConfig(atom_radius_mode="uniform", uniform_radius=1.0)
+    (group, _rgba), = me.build_color_groups(atoms, [], cfg).values()
+    extents = {round(max(v[a] for v in group.positions)
+                     - min(v[a] for v in group.positions), 9)
+               for a in range(3)}
+    assert extents == {2.0}
+
+
+def test_usda_atom_jitter_adds_scale_op():
+    atoms = [("C", (0.0, 0.0, 0.0))]
+    usda = me.build_usda(atoms, [], StyleConfig(atom_jitter=0.5))
+    assert "xformOp:scale" in usda
+    assert '"xformOp:translate", "xformOp:scale"' in usda
+    usda = me.build_usda(atoms, [], StyleConfig(atom_jitter=0.0))
+    assert "xformOp:scale" not in usda
+
+
 def test_glb_is_valid_and_has_geometry():
     atoms, bonds = me.extract_geometry(make_benzene_like())
     gltf = _parse_glb(me.build_glb(atoms, bonds, StyleConfig()))

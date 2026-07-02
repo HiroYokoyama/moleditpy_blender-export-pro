@@ -10,6 +10,7 @@ with sphere and cylinder primitives pre-transformed into world space.
 
 import json
 import math
+import random
 import struct
 
 from .blender_codegen import (
@@ -183,12 +184,30 @@ class _ColorGroup:
         self.indices.extend(base + i for i in faces)
 
 
-def _sphere_transform(center, radius):
-    def t(v):
-        return (v[0] * radius + center[0],
-                v[1] * radius + center[1],
-                v[2] * radius + center[2])
-    return t
+def _sphere_transforms(center, radius, scale=None):
+    """(position, normal) transforms for a sphere, optionally anisotropic.
+
+    *scale* is a per-axis factor tuple (atom jitter squash/stretch).
+    Normals of a scaled sphere follow the inverse scale (renormalized by
+    the caller via _norm).
+    """
+    s = scale or (1.0, 1.0, 1.0)
+
+    def pos(v):
+        return (v[0] * radius * s[0] + center[0],
+                v[1] * radius * s[1] + center[1],
+                v[2] * radius * s[2] + center[2])
+
+    def nrm(n):
+        return (n[0] / s[0], n[1] / s[1], n[2] / s[2])
+
+    return pos, nrm
+
+
+def _jitter_scale(rng, jitter):
+    """Per-axis squash/stretch factors — same distribution as the bpy
+    script and the preview (1 ± uniform(jitter) * 0.5 per axis)."""
+    return tuple(1.0 + rng.uniform(-jitter, jitter) * 0.5 for _ in range(3))
 
 
 def _oriented_transform(start, end, radius):
@@ -235,6 +254,10 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
     endpoints = hidden_atom_indices(atoms, cfg, atom_keys)
     hidden_atoms = set(ring_hidden) | endpoints
 
+    # Same seed as the bpy script/preview: jitter only visible atoms so the
+    # squash factors line up with what the other renderers draw.
+    jitter_rng = random.Random(42) if cfg.atom_jitter > 0.0 else None
+
     colors = []
     for pos_idx, (symbol, pos) in enumerate(atoms):
         orig = atom_keys[pos_idx] if atom_keys else pos_idx
@@ -243,8 +266,10 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
         colors.append(rgb)
         if pos_idx in hidden_atoms:
             continue
-        t = _sphere_transform(pos, radius)
-        group_for(rgb).add(sphere[0], sphere[1], sphere[2], t, lambda n: n)
+        scale = _jitter_scale(jitter_rng, cfg.atom_jitter) if jitter_rng \
+            else None
+        pos_t, nrm_t = _sphere_transforms(pos, radius, scale)
+        group_for(rgb).add(sphere[0], sphere[1], sphere[2], pos_t, nrm_t)
 
     for i, j, _order in bonds:
         if i in endpoints or j in endpoints:
@@ -438,6 +463,8 @@ def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None,
         '{',
     ]
 
+    jitter_rng = random.Random(42) if cfg.atom_jitter > 0.0 else None
+
     colors = []
     for pos_idx, (symbol, pos) in enumerate(atoms):
         orig = atom_keys[pos_idx] if atom_keys else pos_idx
@@ -446,6 +473,12 @@ def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None,
         colors.append(rgb)
         if pos_idx in hidden_atoms:
             continue
+        xform_ops = ['"xformOp:translate"']
+        scale_lines = []
+        if jitter_rng:
+            s = _jitter_scale(jitter_rng, cfg.atom_jitter)
+            scale_lines = ['        float3 xformOp:scale = (%g, %g, %g)' % s]
+            xform_ops.append('"xformOp:scale"')
         lines += [
             '    def Sphere "Atom_%03d"' % pos_idx,
             '    {',
@@ -454,7 +487,9 @@ def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None,
             % (rgb[0], rgb[1], rgb[2]),
             '        double3 xformOp:translate = (%g, %g, %g)'
             % (pos[0], pos[1], pos[2]),
-            '        uniform token[] xformOpOrder = ["xformOp:translate"]',
+        ] + scale_lines + [
+            '        uniform token[] xformOpOrder = [%s]'
+            % ", ".join(xform_ops),
             '    }',
         ]
 
