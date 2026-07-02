@@ -273,6 +273,57 @@ def test_render_settings_in_script():
     compile(script, "<generated>", "exec")
 
 
+# --------------------------------------------------- hiding & lights
+
+
+def test_hidden_atom_indices_hydrogens_and_specific():
+    from conftest import make_ethanol_like
+    atoms, _ = bc.extract_geometry(make_ethanol_like())  # C C O H
+    assert bc.hidden_atom_indices(atoms, StyleConfig(hide_hydrogens=True)) == {3}
+    assert bc.hidden_atom_indices(
+        atoms, StyleConfig(atom_hidden={"1": True})) == {1}
+    assert bc.hidden_atom_indices(
+        atoms, StyleConfig(hide_hydrogens=True,
+                           atom_hidden={"0": True})) == {0, 3}
+
+
+def test_specific_hidden_atom_hides_its_bonds():
+    from conftest import make_ethanol_like
+    atoms, bonds = bc.extract_geometry(make_ethanol_like())
+    endpoints = {0}
+    recs = bc._bond_records(bonds, StyleConfig(), None, endpoints)
+    for r in recs:
+        if r["a"] == 0 or r["b"] == 0:
+            assert r["visible"] is False
+
+
+def test_custom_lights_list_populates_defaults():
+    cfg = StyleConfig(custom_lights={"A": {"type": "SUN", "energy": 3.0}})
+    lights = bc._custom_light_list(cfg)
+    assert len(lights) == 1
+    light = lights[0]
+    assert light["name"] == "A"
+    assert light["type"] == "SUN"
+    assert light["energy"] == 3.0
+    assert light["color"] == [1.0, 1.0, 1.0]   # default white, as rgb
+
+
+def test_custom_lights_in_script():
+    script = _generate(use_custom_lights=True,
+                       custom_lights={"Key": {"type": "AREA", "energy": 900}})
+    assert "USE_CUSTOM_LIGHTS = True" in script
+    assert '"name": "Key"' in script
+    compile(script, "<generated>", "exec")
+
+
+def test_key_light_position_in_script():
+    script = _generate(key_light_azimuth=15.0, key_light_elevation=70.0,
+                       key_light_strength=1.5)
+    assert "KEY_LIGHT_AZIMUTH = 15.0" in script
+    assert "KEY_LIGHT_ELEVATION = 70.0" in script
+    assert "KEY_LIGHT_STRENGTH = 1.5" in script
+
+
 # -------------------------------------------------- atom radius resolution
 
 

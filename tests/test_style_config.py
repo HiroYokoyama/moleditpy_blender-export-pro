@@ -79,6 +79,24 @@ def test_label_and_color_override_round_trip():
     assert restored.atom_color_overrides == {"1": "#123456"}
 
 
+def test_visibility_and_light_fields_round_trip():
+    cfg = StyleConfig(
+        hide_hydrogens=True,
+        atom_hidden={"3": True, "7": True},
+        key_light_azimuth=30.0, key_light_elevation=60.0,
+        key_light_strength=2.0, light_distance_scale=4.0,
+        use_custom_lights=True,
+        custom_lights={"Key": {"type": "SUN", "energy": 5.0,
+                               "color": "#FFEECC"}})
+    restored = StyleConfig()
+    restored.update_from_dict(cfg.to_dict())
+    assert restored.hide_hydrogens is True
+    assert restored.atom_hidden == {"3": True, "7": True}
+    assert restored.key_light_azimuth == 30.0
+    assert restored.use_custom_lights is True
+    assert restored.custom_lights["Key"]["type"] == "SUN"
+
+
 def test_ring_hide_fields_round_trip():
     cfg = StyleConfig(ring_hide_atoms=True, ring_hide_bonds=True,
                       ring_overrides={"0-1-2": {"hide_atoms": True}})

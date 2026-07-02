@@ -64,6 +64,9 @@ def test_dialog_has_quick_start_actions():
     # element color + render output + mesh export handlers
     assert {"_set_element_color", "_clear_element_colors",
             "_browse_render_output", "_color_selected_atoms"} <= methods
+    # atom hide + custom light handlers
+    assert {"_hide_selected_atoms", "_show_selected_atoms",
+            "_add_light", "_remove_light", "_rebuild_custom_lights"} <= methods
 
 
 def test_preview_material_kwargs_never_collide_with_add_mesh_args():

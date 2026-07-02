@@ -47,6 +47,13 @@ the machine running MoleditPy.
 - **Atom sizes & colors**: global vdW scale, a one-click hydrogen size
   factor, and per-selected-atom scaling (relative factor or absolute radius)
   and coloring with reset buttons — overrides are saved with the project.
+- **Hide what you don't want**: omit all hydrogens in one click, or hide
+  specific selected atoms (and their bonds). Hidden atoms keep their ring
+  panel, so an aromatic ring can show just its plate.
+- **Lighting control**: aim the key light (azimuth/elevation), set its
+  strength and distance, or switch to a fully custom light list — add and
+  remove lights, each with its own type (area/point/sun/spot), position,
+  intensity and color.
 - **Atom labels**: optional 3D text per atom (symbol, symbol+index, or
   index) with size/color/offset controls, camera-billboarded in Blender and
   previewed in-app.
