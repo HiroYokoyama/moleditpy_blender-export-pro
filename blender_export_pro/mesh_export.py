@@ -13,6 +13,7 @@ import math
 import struct
 
 from .blender_codegen import (
+    _ring_records,
     extract_geometry,
     extract_rings,
     hidden_atom_indices,
@@ -21,6 +22,8 @@ from .blender_codegen import (
     resolve_bond_color,
     ring_hidden_geometry,
     ring_key,
+    ring_outlines_enabled,
+    ring_panels_enabled,
 )
 from .style_config import StyleConfig
 
@@ -101,6 +104,55 @@ def _axis_angle_to_euler_xyz(axis, angle_deg):
     return math.degrees(rx), math.degrees(ry), math.degrees(rz)
 
 
+def _scaled_ring_pts(atoms, rec):
+    """Ring corner positions, inset toward the ring center by rec['scale']."""
+    pts = [atoms[i][1] for i in rec["indices"]]
+    n = len(pts)
+    center = tuple(sum(p[k] for p in pts) / n for k in range(3))
+    scale = rec["scale"]
+    return [tuple(center[k] + (p[k] - center[k]) * scale for k in range(3))
+            for p in pts]
+
+
+def _ring_plate_mesh(pts, thickness):
+    """Triangulated plate for one ring: (verts, normals, faces).
+
+    Top and bottom faces are always emitted (so a zero-thickness sheet is
+    visible from both sides); side quads appear when thickness > 0.
+    Vertices are duplicated per face for flat shading.
+    """
+    n = len(pts)
+    normal = _norm(_cross(
+        tuple(pts[1][k] - pts[0][k] for k in range(3)),
+        tuple(pts[2][k] - pts[0][k] for k in range(3))))
+    half = tuple(normal[k] * thickness / 2.0 for k in range(3))
+    top = [tuple(p[k] + half[k] for k in range(3)) for p in pts]
+    bottom = [tuple(p[k] - half[k] for k in range(3)) for p in pts]
+    neg = tuple(-c for c in normal)
+
+    verts, normals, faces = [], [], []
+    verts += top
+    normals += [normal] * n
+    for k in range(1, n - 1):
+        faces += [0, k, k + 1]
+    base = len(verts)
+    verts += bottom
+    normals += [neg] * n
+    for k in range(1, n - 1):
+        faces += [base, base + k + 1, base + k]
+
+    if thickness > 0.0:
+        for k in range(n):
+            k2 = (k + 1) % n
+            edge = tuple(top[k2][j] - top[k][j] for j in range(3))
+            side = _norm(_cross(edge, normal))
+            base = len(verts)
+            verts += [top[k], top[k2], bottom[k2], bottom[k]]
+            normals += [side] * 4
+            faces += [base, base + 1, base + 2, base, base + 2, base + 3]
+    return verts, normals, faces
+
+
 def _basis_from_z(direction):
     """Orthonormal basis (x, y, z) with z along *direction*."""
     z = _norm(direction)
@@ -168,10 +220,10 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
     cylinder = _unit_cylinder()
     groups = {}
 
-    def group_for(rgb):
-        key = "%.4f_%.4f_%.4f" % tuple(rgb)
+    def group_for(rgb, alpha=1.0):
+        key = "%.4f_%.4f_%.4f_%.4f" % (rgb[0], rgb[1], rgb[2], alpha)
         if key not in groups:
-            groups[key] = (_ColorGroup(), tuple(rgb))
+            groups[key] = (_ColorGroup(), (rgb[0], rgb[1], rgb[2], alpha))
         return groups[key][0]
 
     ring_hidden, hide_bond_rings = ring_hidden_geometry(
@@ -203,6 +255,27 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
         group_for(rgb).add(
             cylinder[0], cylinder[1], cylinder[2], pos_t, nrm_t)
 
+    if rings and (ring_panels_enabled(cfg) or ring_outlines_enabled(cfg)):
+        for rec in _ring_records(atoms, rings, cfg, ring_keys):
+            if not rec["visible"]:
+                continue
+            pts = _scaled_ring_pts(atoms, rec)
+            rgb = tuple(rec["color"])
+            if ring_panels_enabled(cfg):
+                verts, normals, faces = _ring_plate_mesh(
+                    pts, rec["thickness"])
+                group_for(rgb, rec["opacity"]).add(
+                    verts, normals, faces, lambda v: v, lambda n: n)
+            if ring_outlines_enabled(cfg):
+                radius = max(cfg.ring_outline_radius, 0.005)
+                for k in range(len(pts)):
+                    pos_t, nrm_t, length = _oriented_transform(
+                        pts[k], pts[(k + 1) % len(pts)], radius)
+                    if length < 1e-6:
+                        continue
+                    group_for(rgb).add(
+                        cylinder[0], cylinder[1], cylinder[2], pos_t, nrm_t)
+
     return groups
 
 
@@ -222,7 +295,7 @@ def build_glb(atoms, bonds, cfg: StyleConfig, atom_keys=None,
     bin_blob = bytearray()
     accessors, buffer_views, meshes, materials, nodes = [], [], [], [], []
 
-    for group, rgb in groups.values():
+    for group, rgba in groups.values():
         if not group.positions:
             continue
         # index buffer view
@@ -267,13 +340,17 @@ def build_glb(atoms, bonds, cfg: StyleConfig, atom_keys=None,
                           "count": len(group.normals), "type": "VEC3"})
 
         mat_idx = len(materials)
-        materials.append({
+        material = {
             "pbrMetallicRoughness": {
-                "baseColorFactor": [rgb[0], rgb[1], rgb[2], 1.0],
+                "baseColorFactor": [rgba[0], rgba[1], rgba[2], rgba[3]],
                 "metallicFactor": 0.0, "roughnessFactor": 0.5,
             },
             "name": "col_%d" % mat_idx,
-        })
+        }
+        if rgba[3] < 1.0:
+            material["alphaMode"] = "BLEND"
+            material["doubleSided"] = True
+        materials.append(material)
         mesh_idx = len(meshes)
         meshes.append({"primitives": [{
             "attributes": {"POSITION": pos_acc, "NORMAL": nrm_acc},
@@ -303,6 +380,38 @@ def build_glb(atoms, bonds, cfg: StyleConfig, atom_keys=None,
 
 
 # ---------------------------------------------------------------------- USD
+
+
+def _usda_cylinder(name, start, end, radius, rgb):
+    """Lines for one USD Cylinder prim spanning start->end, or [] if degenerate."""
+    direction = (end[0] - start[0], end[1] - start[1], end[2] - start[2])
+    length = math.sqrt(sum(d * d for d in direction))
+    if length < 1e-6:
+        return []
+    mid = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0,
+           (start[2] + end[2]) / 2.0)
+    # USD cylinder default axis is Z; rotate Z onto the segment direction
+    # with a single angle-axis (rotateXYZ built from the rotation matrix).
+    z = _norm(direction)
+    axis = _cross((0.0, 0.0, 1.0), z)
+    angle = math.degrees(math.acos(max(-1.0, min(1.0, z[2]))))
+    axis = _norm(axis) if any(a for a in axis) else (1.0, 0.0, 0.0)
+    rx, ry, rz = _axis_angle_to_euler_xyz(axis, angle)
+    return [
+        '    def Cylinder "%s"' % name,
+        '    {',
+        '        double radius = %g' % radius,
+        '        double height = %g' % length,
+        '        uniform token axis = "Z"',
+        '        color3f[] primvars:displayColor = [(%g, %g, %g)]'
+        % (rgb[0], rgb[1], rgb[2]),
+        '        double3 xformOp:translate = (%g, %g, %g)'
+        % (mid[0], mid[1], mid[2]),
+        '        float3 xformOp:rotateXYZ = (%g, %g, %g)' % (rx, ry, rz),
+        '        uniform token[] xformOpOrder = '
+        '["xformOp:translate", "xformOp:rotateXYZ"]',
+        '    }',
+    ]
 
 
 def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None,
@@ -350,36 +459,40 @@ def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None,
             continue
         if any(i in members and j in members for members in hide_bond_rings):
             continue
-        start, end = atoms[i][1], atoms[j][1]
-        direction = (end[0] - start[0], end[1] - start[1], end[2] - start[2])
-        length = math.sqrt(sum(d * d for d in direction))
-        if length < 1e-6:
-            continue
-        mid = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0,
-               (start[2] + end[2]) / 2.0)
         rgb = resolve_bond_color(cfg, colors[i], colors[j])
-        # USD cylinder default axis is Z; rotate Z onto the bond direction
-        # with a single angle-axis (rotateXYZ built from the rotation matrix).
-        z = _norm(direction)
-        axis = _cross((0.0, 0.0, 1.0), z)
-        angle = math.degrees(math.acos(max(-1.0, min(1.0, z[2]))))
-        axis = _norm(axis) if any(a for a in axis) else (1.0, 0.0, 0.0)
-        rx, ry, rz = _axis_angle_to_euler_xyz(axis, angle)
-        lines += [
-            '    def Cylinder "Bond_%03d"' % bidx,
-            '    {',
-            '        double radius = %g' % max(cfg.bond_radius, 0.01),
-            '        double height = %g' % length,
-            '        uniform token axis = "Z"',
-            '        color3f[] primvars:displayColor = [(%g, %g, %g)]'
-            % (rgb[0], rgb[1], rgb[2]),
-            '        double3 xformOp:translate = (%g, %g, %g)'
-            % (mid[0], mid[1], mid[2]),
-            '        float3 xformOp:rotateXYZ = (%g, %g, %g)' % (rx, ry, rz),
-            '        uniform token[] xformOpOrder = '
-            '["xformOp:translate", "xformOp:rotateXYZ"]',
-            '    }',
-        ]
+        lines += _usda_cylinder("Bond_%03d" % bidx, atoms[i][1], atoms[j][1],
+                                max(cfg.bond_radius, 0.01), rgb)
+
+    if rings and (ring_panels_enabled(cfg) or ring_outlines_enabled(cfg)):
+        for ridx, rec in enumerate(_ring_records(atoms, rings, cfg, ring_keys)):
+            if not rec["visible"]:
+                continue
+            pts = _scaled_ring_pts(atoms, rec)
+            rgb = rec["color"]
+            if ring_panels_enabled(cfg):
+                verts, _normals, faces = _ring_plate_mesh(
+                    pts, rec["thickness"])
+                counts = ", ".join(["3"] * (len(faces) // 3))
+                indices = ", ".join(str(i) for i in faces)
+                points = ", ".join("(%g, %g, %g)" % v for v in verts)
+                lines += [
+                    '    def Mesh "RingPanel_%03d"' % ridx,
+                    '    {',
+                    '        int[] faceVertexCounts = [%s]' % counts,
+                    '        int[] faceVertexIndices = [%s]' % indices,
+                    '        point3f[] points = [%s]' % points,
+                    '        color3f[] primvars:displayColor = [(%g, %g, %g)]'
+                    % (rgb[0], rgb[1], rgb[2]),
+                    '        float[] primvars:displayOpacity = [%g]'
+                    % rec["opacity"],
+                    '    }',
+                ]
+            if ring_outlines_enabled(cfg):
+                radius = max(cfg.ring_outline_radius, 0.005)
+                for k in range(len(pts)):
+                    lines += _usda_cylinder(
+                        "RingLine_%03d_%d" % (ridx, k),
+                        pts[k], pts[(k + 1) % len(pts)], radius, rgb)
 
     lines += ['}', '']
     return "\n".join(lines)

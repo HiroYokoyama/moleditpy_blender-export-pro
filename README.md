@@ -14,18 +14,22 @@ the machine running MoleditPy.
   the 3D style list so you can iterate on the look inside MoleditPy (PyVista).
 - **Tabbed config panel** (`Visuals > Blender Export Pro…`): Presets, Atoms,
   Bonds, Deformation, Material, Scene, Export.
-- **32 bundled presets**: Classic Ball-and-Stick, Space-Filling CPK, Cute
+- **34 bundled presets**: Classic Ball-and-Stick, Space-Filling CPK, Cute
   Cartoon, Toon Comic, Low-Poly Toy, Paper Origami, Glass Sculpture, Ice
   Crystal, Claymation, Gummy Candy, Jelly Wobble, Balloon Animal, Velvet
   Plush, Wax Crayon, Stone Sculpture, Ceramic Figurine, Chalkboard Sketch,
   Neon Glow, Gold Jewelry, Chrome Showroom, Copper Steampunk, Wire Model,
   Holographic Display, Metaball Blob, Aromatic Plates, Stained Glass Rings,
-  Disco Party, Lava Lamp, Radioactive Slime, Cotton Candy, Soap Bubble,
-  Spaghetti Meatballs — plus save/load of custom JSON presets.
-- **Ring panels**: draw benzene and other rings as filled hexagonal
-  panels/plates — flat or extruded, translucent stained-glass or solid,
-  custom-colored or matched to the ring atoms (aromatic-only or all small
-  rings).
+  Hexagon Outline, Glass Plate Rings, Disco Party, Lava Lamp, Radioactive
+  Slime, Cotton Candy, Soap Bubble, Spaghetti Meatballs — plus save/load of
+  custom JSON presets.
+- **Ring panels & outlines**: draw benzene and other rings as filled
+  hexagonal panels/plates — flat or extruded, translucent stained-glass or
+  solid, custom-colored or matched to the ring atoms (aromatic-only or all
+  small rings) — and/or as a tube along the ring perimeter (the classic
+  hexagon-line look) with an adjustable line width. Ring plates and outlines
+  appear identically in the live preview, the Blender script and the
+  glTF/USD export, including plate transparency.
 - **Per-ring styling**: a table on the Rings tab lists every detected ring;
   each row has its own panel show/hide, atoms show/hide, color, opacity,
   thickness and size controls. Selecting a row highlights that ring in the
@@ -41,7 +45,8 @@ the machine running MoleditPy.
   stone, iridescent — Principled BSDF with version-robust socket naming
   (Blender 2.8x–4.x) plus metallic tinting and emission.
 - **Scene setup**: 3-point studio lighting, ground plane / shadow catcher,
-  auto-framed camera, optional turntable animation.
+  auto-framed camera with an adjustable camera distance, optional turntable
+  animation.
 - **Background & render**: preset backdrop, custom color, HDRI environment
   image file (browse from the panel; also lights the scene), or transparent
   film for compositing — plus optional Cycles/EEVEE engine, sample count and
@@ -53,9 +58,9 @@ the machine running MoleditPy.
   specific selected atoms (and their bonds). Hidden atoms keep their ring
   panel, so an aromatic ring can show just its plate.
 - **Lighting control**: aim the key light (azimuth/elevation), set its
-  strength and distance, or switch to a fully custom light list — add and
-  remove lights, each with its own type (area/point/sun/spot), position,
-  intensity and color.
+  strength and distance, tune the fill and rim light power relative to the
+  key, or switch to a fully custom light list — add and remove lights, each
+  with its own type (area/point/sun/spot), position, intensity and color.
 - **Atom labels**: optional 3D text per atom (symbol, symbol+index, or
   index) with size/color/offset controls, camera-billboarded in Blender and
   previewed in-app.
@@ -70,6 +75,9 @@ the machine running MoleditPy.
 - **Full color control**: recolor a whole element (all carbons, etc.),
   override individual atoms, and choose whether bonds blend their atoms'
   colors or use one fixed bond color.
+- **Bond detailing**: radius, cross-section segments, double/triple-bond
+  rendering with adjustable spacing and an adjustable thickness factor for
+  the parallel cylinders (aromatic rings like benzene included).
 - **Consistent with the main app**: atom colors come from MoleditPy's own
   CPK color table (including your customizations) and radii from RDKit's
   van der Waals table — a scale of 0.3 reproduces the main app's
@@ -109,11 +117,15 @@ Script (.py)…` also works as a one-click export with the current style.
 ## Development
 
 ```bash
-python -m pytest tests/ -v
+python run_tests.py              # full suite
+python run_tests.py -v           # verbose
+python run_tests.py -k ring      # by keyword
+python run_tests.py --coverage   # with coverage (needs pytest-cov)
 ```
 
-The test suite runs fully headless — PyQt6/pyvista/rdkit are mocked or
-duck-typed; no GUI or chemistry libraries are required.
+`python -m pytest tests/ -v` works too — the runner is just a convenience
+wrapper. The test suite runs fully headless — PyQt6/pyvista/rdkit are mocked
+or duck-typed; no GUI or chemistry libraries are required (only `pytest`).
 
 ## License
 

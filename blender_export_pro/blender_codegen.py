@@ -297,6 +297,16 @@ def hidden_atom_indices(atoms, cfg: StyleConfig, atom_keys=None):
     return hidden
 
 
+def ring_panels_enabled(cfg: StyleConfig) -> bool:
+    """True when rings are drawn as filled plates ('panel', 'panel+outline')."""
+    return "panel" in (cfg.ring_style or "")
+
+
+def ring_outlines_enabled(cfg: StyleConfig) -> bool:
+    """True when rings get a perimeter line ('outline', 'panel+outline')."""
+    return "outline" in (cfg.ring_style or "")
+
+
 def resolve_ring_style(cfg: StyleConfig, key: str) -> dict:
     """Effective style values for one ring: globals + per-ring override."""
     override = {}
@@ -324,7 +334,7 @@ def ring_hidden_geometry(cfg: StyleConfig, rings, ring_keys=None):
     """
     hidden_atoms = set()
     hide_bond_rings = []
-    if cfg.ring_style != "panel":
+    if not (ring_panels_enabled(cfg) or ring_outlines_enabled(cfg)):
         return hidden_atoms, hide_bond_rings
     for pos, ring in enumerate(rings or []):
         key = ring_keys[pos] if ring_keys else ring_key(ring)
@@ -428,12 +438,14 @@ BOND_STYLE = {cfg.bond_style!r}
 BOND_RADIUS = {float(cfg.bond_radius)!r}
 BOND_SEGMENTS = {int(cfg.bond_segments)!r}
 MULTI_BOND_OFFSET = {float(cfg.multi_bond_offset)!r}
+MULTI_BOND_SCALE = {float(cfg.multi_bond_scale)!r}
 BOND_COLOR_MODE = {cfg.bond_color_mode!r}
 BOND_COLOR = {repr([round(c, 4) for c in hex_to_rgb(cfg.bond_color)])}
 RING_STYLE = {cfg.ring_style!r}
 RING_SCALE = {float(cfg.ring_scale)!r}
 RING_THICKNESS = {float(cfg.ring_thickness)!r}
 RING_OPACITY = {float(cfg.ring_opacity)!r}
+RING_OUTLINE_RADIUS = {float(cfg.ring_outline_radius)!r}
 NOISE_STRENGTH = {float(cfg.deformation_noise)!r}
 NOISE_SCALE = {float(cfg.deformation_noise_scale)!r}
 BEND_DEG = {float(cfg.deformation_bend)!r}
@@ -449,7 +461,10 @@ TURNTABLE_FRAMES = {int(cfg.turntable_frames)!r}
 KEY_LIGHT_AZIMUTH = {float(cfg.key_light_azimuth)!r}
 KEY_LIGHT_ELEVATION = {float(cfg.key_light_elevation)!r}
 KEY_LIGHT_STRENGTH = {float(cfg.key_light_strength)!r}
+FILL_LIGHT_STRENGTH = {float(cfg.fill_light_strength)!r}
+RIM_LIGHT_STRENGTH = {float(cfg.rim_light_strength)!r}
 LIGHT_DISTANCE_SCALE = {float(cfg.light_distance_scale)!r}
+CAMERA_DISTANCE_SCALE = {float(cfg.camera_distance_scale)!r}
 USE_CUSTOM_LIGHTS = {cfg.use_custom_lights!r}
 CUSTOM_LIGHTS = {repr(_custom_light_list(cfg))}
 BG_MODE = {cfg.background_mode!r}
@@ -664,7 +679,7 @@ def create_bond(coll, index, rec):
 
     direction = (end - start).normalized()
     perp = _perpendicular(direction)
-    radius = BOND_RADIUS if order <= 1 else BOND_RADIUS * 0.7
+    radius = BOND_RADIUS if order <= 1 else BOND_RADIUS * MULTI_BOND_SCALE
     for k, off in enumerate(offsets):
         shift = perp * off
         create_bond_segment(
@@ -701,16 +716,9 @@ def create_ring_panel(coll, index, rec):
     """
     if not rec.get("visible", True):
         return None
-    scale = rec.get("scale", RING_SCALE)
     thickness = rec.get("thickness", RING_THICKNESS)
     opacity = rec.get("opacity", RING_OPACITY)
-
-    verts = [Vector(ATOMS[i]["pos"]) for i in rec["indices"]]
-    center = Vector((0.0, 0.0, 0.0))
-    for v in verts:
-        center += v
-    center /= len(verts)
-    verts = [center + (v - center) * scale for v in verts]
+    verts = _ring_verts(rec)
 
     name = "RingPanel_%03d" % index
     mesh = bpy.data.meshes.new(name)
@@ -727,6 +735,43 @@ def create_ring_panel(coll, index, rec):
     mat_name = "Mat_ring_%s_%.2f" % (
         "_".join("%.3f" % c for c in rec["color"]), opacity)
     mat = make_ring_material(mat_name, rec["color"], opacity)
+    obj.data.materials.append(mat)
+    link_to(coll, obj)
+    return obj
+
+
+def _ring_verts(rec):
+    """Ring corner positions, inset toward the center by the ring's scale."""
+    verts = [Vector(ATOMS[i]["pos"]) for i in rec["indices"]]
+    center = Vector((0.0, 0.0, 0.0))
+    for v in verts:
+        center += v
+    center /= len(verts)
+    scale = rec.get("scale", RING_SCALE)
+    return [center + (v - center) * scale for v in verts]
+
+
+def create_ring_outline(coll, index, rec):
+    """Draw the ring perimeter as a closed tube — the hexagon-line look."""
+    if not rec.get("visible", True):
+        return None
+    verts = _ring_verts(rec)
+
+    name = "RingOutline_%03d" % index
+    curve = bpy.data.curves.new(name, type="CURVE")
+    curve.dimensions = "3D"
+    curve.bevel_depth = RING_OUTLINE_RADIUS
+    curve.bevel_resolution = 4
+    spline = curve.splines.new("POLY")
+    spline.points.add(len(verts) - 1)
+    for point, v in zip(spline.points, verts):
+        point.co = (v.x, v.y, v.z, 1.0)
+    spline.use_cyclic_u = True
+    obj = bpy.data.objects.new(name, curve)
+    bpy.context.scene.collection.objects.link(obj)
+
+    mat_name = "Mat_ringline_%s" % "_".join("%.3f" % c for c in rec["color"])
+    mat = make_ring_material(mat_name, rec["color"], 1.0)
     obj.data.materials.append(mat)
     link_to(coll, obj)
     return obj
@@ -796,10 +841,11 @@ def setup_scene(coll):
     add_light("BEP_Key", "AREA", center + key_dir * dist, key_energy)
     # Fill from the opposite azimuth, rim from behind — relative to the key.
     fill_dir = Vector((-key_dir.x, -key_dir.y, abs(key_dir.z) * 0.5 + 0.2))
-    add_light("BEP_Fill", "AREA", center + fill_dir * dist, key_energy * 0.3)
+    add_light("BEP_Fill", "AREA", center + fill_dir * dist,
+              key_energy * FILL_LIGHT_STRENGTH)
     add_light("BEP_Rim", "AREA",
               center + Vector((-key_dir.x, key_dir.y, key_dir.z)) * dist,
-              key_energy * 0.5)
+              key_energy * RIM_LIGHT_STRENGTH)
 
     if ADD_GROUND:
         zmin = min(a["pos"][2] - a["radius"] for a in ATOMS)
@@ -813,7 +859,10 @@ def setup_scene(coll):
     if ADD_CAMERA:
         cam_data = bpy.data.cameras.new("BEP_Camera")
         cam = bpy.data.objects.new("BEP_Camera", cam_data)
-        cam.location = center + Vector((0.0, -size * 3.2, size * 1.4))
+        # 0.4375 keeps the stock 3.2 : 1.4 back/up framing ratio.
+        cam.location = center + Vector(
+            (0.0, -size * CAMERA_DISTANCE_SCALE,
+             size * CAMERA_DISTANCE_SCALE * 0.4375))
         bpy.context.scene.collection.objects.link(cam)
         direction = center - cam.location
         cam.rotation_mode = "QUATERNION"
@@ -984,9 +1033,11 @@ def main():
     for idx, rec in enumerate(BONDS):
         if rec.get("visible", True):
             create_bond(coll, idx, rec)
-    if RING_STYLE == "panel":
-        for idx, rec in enumerate(RINGS):
+    for idx, rec in enumerate(RINGS):
+        if "panel" in RING_STYLE:
             create_ring_panel(coll, idx, rec)
+        if "outline" in RING_STYLE:
+            create_ring_outline(coll, idx, rec)
     setup_scene(coll)
     setup_background()
     setup_render()

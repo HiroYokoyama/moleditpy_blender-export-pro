@@ -321,6 +321,13 @@ class BlenderExportDialog(QDialog):
             0.02, 1.0, 0.02, "Spacing between the parallel cylinders.")
         form.addRow("Multi-bond offset (Å):", self.multi_bond_offset)
 
+        self.multi_bond_scale = self._dspin(
+            0.1, 2.0, 0.05,
+            "Thickness of each double/triple-bond cylinder (aromatic rings "
+            "like benzene too), relative to the single-bond radius. "
+            "1.0 = same thickness as single bonds.")
+        form.addRow("Multi-bond thickness (×):", self.multi_bond_scale)
+
         self.bond_color_mode = QComboBox()
         self.bond_color_mode.addItems(BOND_COLOR_MODES)
         self.bond_color_mode.setToolTip(
@@ -343,7 +350,9 @@ class BlenderExportDialog(QDialog):
         self.ring_style.addItems(RING_STYLES)
         self.ring_style.setToolTip(
             "panel: draw rings (benzene etc.) as filled polygon plates — a "
-            "hexagonal panel for a six-membered ring. none: bonds only.")
+            "hexagonal panel for a six-membered ring. outline: a line/tube "
+            "along the ring perimeter (the classic hexagon line). "
+            "panel+outline: both. none: bonds only.")
         form.addRow("Ring rendering:", self.ring_style)
 
         self.ring_aromatic_only = QCheckBox("Aromatic rings only")
@@ -380,6 +389,12 @@ class BlenderExportDialog(QDialog):
             0.0, 1.0, 0.05,
             "Panel transparency. ~0.5 = stained-glass look, 1.0 = solid.")
         form.addRow("Panel opacity:", self.ring_opacity)
+
+        self.ring_outline_radius = self._dspin(
+            0.005, 0.5, 0.005,
+            "Tube radius of the ring perimeter line, in Angstrom "
+            "(used by the outline styles).")
+        form.addRow("Outline width (Å):", self.ring_outline_radius)
 
         self.ring_hide_atoms = QCheckBox("Hide atoms of paneled rings")
         self.ring_hide_atoms.setToolTip(
@@ -591,6 +606,12 @@ class BlenderExportDialog(QDialog):
             "the scene is render-ready immediately.")
         form.addRow(self.add_camera)
 
+        self.camera_distance_scale = self._dspin(
+            1.0, 10.0, 0.2,
+            "Camera distance = this × molecule size. Smaller = tighter "
+            "framing, larger = more headroom around the molecule.")
+        form.addRow("Camera distance:", self.camera_distance_scale)
+
         self.turntable_frames = QSpinBox()
         self.turntable_frames.setRange(0, 10000)
         self.turntable_frames.setToolTip(
@@ -697,6 +718,16 @@ class BlenderExportDialog(QDialog):
         self.key_light_strength = self._dspin(
             0.0, 10.0, 0.1, "Multiplier on the key light power.")
         gform.addRow("Key strength:", self.key_light_strength)
+        self.fill_light_strength = self._dspin(
+            0.0, 5.0, 0.05,
+            "Fill light power as a fraction of the key light. "
+            "0 = no fill (harder shadows).")
+        gform.addRow("Fill strength (× key):", self.fill_light_strength)
+        self.rim_light_strength = self._dspin(
+            0.0, 5.0, 0.05,
+            "Rim/back light power as a fraction of the key light. "
+            "0 = no rim highlight.")
+        gform.addRow("Rim strength (× key):", self.rim_light_strength)
         self.light_distance_scale = self._dspin(
             0.5, 10.0, 0.5, "Light distance = this × molecule size.")
         gform.addRow("Light distance:", self.light_distance_scale)
@@ -811,6 +842,7 @@ class BlenderExportDialog(QDialog):
         ("bond_segments", "int"),
         ("show_multiple_bonds", "bool"),
         ("multi_bond_offset", "float"),
+        ("multi_bond_scale", "float"),
         ("bond_color_mode", "combo"),
         ("bond_color", "text"),
         ("ring_style", "combo"),
@@ -820,6 +852,7 @@ class BlenderExportDialog(QDialog):
         ("ring_color_mode", "combo"),
         ("ring_color", "text"),
         ("ring_opacity", "float"),
+        ("ring_outline_radius", "float"),
         ("ring_hide_atoms", "bool"),
         ("ring_hide_bonds", "bool"),
         ("deformation_noise", "float"),
@@ -844,7 +877,10 @@ class BlenderExportDialog(QDialog):
         ("key_light_azimuth", "float"),
         ("key_light_elevation", "float"),
         ("key_light_strength", "float"),
+        ("fill_light_strength", "float"),
+        ("rim_light_strength", "float"),
         ("light_distance_scale", "float"),
+        ("camera_distance_scale", "float"),
         ("use_custom_lights", "bool"),
         ("background_mode", "combo"),
         ("background_color", "text"),

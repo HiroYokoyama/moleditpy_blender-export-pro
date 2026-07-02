@@ -97,6 +97,23 @@ def test_visibility_and_light_fields_round_trip():
     assert restored.custom_lights["Key"]["type"] == "SUN"
 
 
+def test_bond_scale_and_scene_scale_fields_round_trip():
+    cfg = StyleConfig(multi_bond_scale=1.0, fill_light_strength=0.6,
+                      rim_light_strength=0.1, camera_distance_scale=4.5)
+    restored = StyleConfig()
+    restored.update_from_dict(cfg.to_dict())
+    assert restored.multi_bond_scale == 1.0
+    assert restored.fill_light_strength == 0.6
+    assert restored.rim_light_strength == 0.1
+    assert restored.camera_distance_scale == 4.5
+    # defaults preserve the historical hardcoded look
+    default = StyleConfig()
+    assert default.multi_bond_scale == 0.7
+    assert default.fill_light_strength == 0.3
+    assert default.rim_light_strength == 0.5
+    assert default.camera_distance_scale == 3.2
+
+
 def test_ring_hide_fields_round_trip():
     cfg = StyleConfig(ring_hide_atoms=True, ring_hide_bonds=True,
                       ring_overrides={"0-1-2": {"hide_atoms": True}})

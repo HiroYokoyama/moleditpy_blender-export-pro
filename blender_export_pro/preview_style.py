@@ -18,6 +18,8 @@ from .blender_codegen import (
     resolve_ring_style,
     ring_hidden_geometry,
     ring_key,
+    ring_outlines_enabled,
+    ring_panels_enabled,
 )
 from .style_config import StyleConfig
 
@@ -137,9 +139,9 @@ def _apply_lighting(plotter, cfg: StyleConfig, center, size) -> None:
             dist = cfg.light_distance_scale
             add(key_dir, dist, 1.0 * strength)
             add((cfg.key_light_azimuth + 180.0, cfg.key_light_elevation * 0.5),
-                dist, 0.3 * strength)
+                dist, cfg.fill_light_strength * strength)
             add((cfg.key_light_azimuth + 135.0, cfg.key_light_elevation),
-                dist, 0.5 * strength)
+                dist, cfg.rim_light_strength * strength)
         
         if hasattr(plotter, "set_environment_texture") and hasattr(pv, "cubemap"):
             try:
@@ -191,9 +193,9 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
     mat = _material_kwargs(cfg)
     resolution = 12 if cfg.atom_shape == "ico_sphere" else 24
 
-    # Atoms/bonds of paneled rings can be hidden (show the plate only).
+    # Atoms/bonds of paneled/outlined rings can be hidden (plate/line only).
     hidden_atoms, hide_bond_rings = set(), []
-    if cfg.ring_style == "panel":
+    if ring_panels_enabled(cfg) or ring_outlines_enabled(cfg):
         try:
             hidden_atoms, hide_bond_rings = ring_hidden_geometry(
                 cfg, extract_rings(mol, None, cfg.ring_aromatic_only))
@@ -268,7 +270,7 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
                 offsets = [-cfg.multi_bond_offset / 2.0, cfg.multi_bond_offset / 2.0]
             else:
                 offsets = [-cfg.multi_bond_offset, 0.0, cfg.multi_bond_offset]
-            radius = bond_radius * 0.7
+            radius = max(bond_radius * cfg.multi_bond_scale, 0.01)
         else:
             perp = np.zeros(3)
             offsets = [0.0]
@@ -292,7 +294,7 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
                 **mat,
             )
 
-    if cfg.ring_style == "panel":
+    if ring_panels_enabled(cfg) or ring_outlines_enabled(cfg):
         _draw_ring_panels(plotter, mol, atoms, positions, cfg)
 
     if cfg.label_mode != "none":
@@ -337,7 +339,7 @@ def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
             color = hex_to_rgb(cfg.ring_color)
 
         try:
-            if style["visible"]:
+            if style["visible"] and ring_panels_enabled(cfg):
                 panel = pv.PolyData(panel_pts, faces=face)
                 if style["thickness"] > 0.0:
                     normal = np.cross(
@@ -352,6 +354,22 @@ def _draw_ring_panels(plotter, mol, atoms, positions, cfg: StyleConfig) -> None:
                     color=color,
                     opacity=style["opacity"],
                     name=f"bep_ring_{idx}",
+                )
+            if style["visible"] and ring_outlines_enabled(cfg):
+                loop = np.vstack([panel_pts, panel_pts[:1]])
+                lines = np.hstack([[n_pts + 1], np.arange(n_pts + 1)])
+                outline = pv.PolyData(loop)
+                outline.lines = lines
+                try:
+                    outline = outline.tube(
+                        radius=max(cfg.ring_outline_radius, 0.005))
+                except Exception:
+                    logging.debug("BlenderExportPro: outline tube() failed, "
+                                  "using lines", exc_info=True)
+                plotter.add_mesh(
+                    outline,
+                    color=color,
+                    name=f"bep_ring_line_{idx}",
                 )
             if highlighted:
                 _draw_ring_highlight(plotter, idx, pts, cfg)

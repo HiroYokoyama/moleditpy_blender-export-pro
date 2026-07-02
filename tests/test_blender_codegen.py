@@ -195,6 +195,35 @@ def test_ring_style_none_exports_empty_rings():
     assert "RINGS = []" in script
 
 
+def test_ring_outline_script_compiles_and_contains_data():
+    mol = make_benzene_like()
+    cfg = StyleConfig(ring_style="panel+outline", ring_outline_radius=0.08)
+    script = bc.generate_script_from_mol(mol, cfg)
+    compile(script, "<generated>", "exec")
+    assert "create_ring_outline" in script
+    assert "RING_OUTLINE_RADIUS = 0.08" in script
+    assert "RING_STYLE = 'panel+outline'" in script
+
+
+def test_ring_style_predicates():
+    assert not bc.ring_panels_enabled(StyleConfig(ring_style="none"))
+    assert bc.ring_panels_enabled(StyleConfig(ring_style="panel"))
+    assert not bc.ring_panels_enabled(StyleConfig(ring_style="outline"))
+    assert bc.ring_outlines_enabled(StyleConfig(ring_style="outline"))
+    both = StyleConfig(ring_style="panel+outline")
+    assert bc.ring_panels_enabled(both) and bc.ring_outlines_enabled(both)
+
+
+def test_ring_outline_style_can_hide_ring_geometry():
+    mol = make_benzene_like()
+    rings = bc.extract_rings(mol)
+    cfg = StyleConfig(ring_style="outline", ring_hide_atoms=True,
+                      ring_hide_bonds=True)
+    hidden_atoms, hide_bond_rings = bc.ring_hidden_geometry(cfg, rings)
+    assert hidden_atoms == set(rings[0])
+    assert hide_bond_rings == [set(rings[0])]
+
+
 def test_ring_color_match_atoms():
     atoms = [("C", (float(i), 0.0, 0.0)) for i in range(3)]
     cfg = StyleConfig(ring_style="panel", ring_color_mode="match_atoms")
@@ -320,6 +349,26 @@ def test_key_light_position_in_script():
     assert "KEY_LIGHT_AZIMUTH = 15.0" in script
     assert "KEY_LIGHT_ELEVATION = 70.0" in script
     assert "KEY_LIGHT_STRENGTH = 1.5" in script
+
+
+def test_fill_rim_and_camera_scales_in_script():
+    script = _generate(fill_light_strength=0.6, rim_light_strength=0.2,
+                       camera_distance_scale=4.5)
+    assert "FILL_LIGHT_STRENGTH = 0.6" in script
+    assert "RIM_LIGHT_STRENGTH = 0.2" in script
+    assert "CAMERA_DISTANCE_SCALE = 4.5" in script
+    assert "key_energy * FILL_LIGHT_STRENGTH" in script
+    assert "key_energy * RIM_LIGHT_STRENGTH" in script
+    assert "size * CAMERA_DISTANCE_SCALE" in script
+    compile(script, "<generated>", "exec")
+
+
+def test_multi_bond_scale_in_script():
+    script = _generate(multi_bond_scale=1.0)
+    assert "MULTI_BOND_SCALE = 1.0" in script
+    assert "BOND_RADIUS * MULTI_BOND_SCALE" in script
+    assert "BOND_RADIUS * 0.7" not in script
+    compile(script, "<generated>", "exec")
 
 
 # -------------------------------------------------- atom radius resolution

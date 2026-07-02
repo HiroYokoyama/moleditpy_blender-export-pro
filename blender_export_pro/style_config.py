@@ -39,7 +39,7 @@ def default_light() -> dict:
     }
 IMAGE_FORMATS = ("PNG", "JPEG", "TIFF", "OPEN_EXR", "WEBP")
 LABEL_MODES = ("none", "symbol", "symbol_index", "index")
-RING_STYLES = ("none", "panel")
+RING_STYLES = ("none", "panel", "outline", "panel+outline")
 RING_COLOR_MODES = ("custom", "match_atoms")
 BLENDER_TARGETS = ("4.x", "3.x", "2.8x")
 
@@ -80,15 +80,20 @@ class StyleConfig:
     multi_bond_offset: float = 0.18
     bond_color_mode: str = "atoms"   # "atoms" = average of the two atoms
     bond_color: str = "#808080"      # used when bond_color_mode == "single"
+    # Radius factor on each cylinder of a double/triple (e.g. aromatic ring)
+    # bond, relative to bond_radius. 1.0 = same thickness as single bonds.
+    multi_bond_scale: float = 0.7
 
-    # Rings (benzene etc. drawn as filled polygon panels/plates)
-    ring_style: str = "none"          # "none" | "panel"
+    # Rings (benzene etc. drawn as filled polygon panels/plates and/or a
+    # perimeter line — the classic hexagon outline)
+    ring_style: str = "none"          # none | panel | outline | panel+outline
     ring_aromatic_only: bool = True   # False = panel every small ring
     ring_scale: float = 0.9           # inset of panel corners toward center
     ring_thickness: float = 0.06      # plate thickness (0 = flat sheet)
     ring_color_mode: str = "custom"   # "custom" | "match_atoms"
     ring_color: str = "#E8D44D"
     ring_opacity: float = 0.55
+    ring_outline_radius: float = 0.04  # perimeter line tube radius (Å)
     ring_hide_atoms: bool = False     # hide atoms of paneled rings (show plate only)
     ring_hide_bonds: bool = False     # hide the ring's internal bonds too
     # Per-ring style overrides, keyed by ring_key() (sorted atom indices,
@@ -122,7 +127,10 @@ class StyleConfig:
     key_light_azimuth: float = -45.0   # degrees around vertical axis
     key_light_elevation: float = 45.0  # degrees above the horizon
     key_light_strength: float = 1.0    # multiplier on the preset energy
+    fill_light_strength: float = 0.3   # fill light power, x the key light
+    rim_light_strength: float = 0.5    # rim light power, x the key light
     light_distance_scale: float = 2.5  # light distance = this x molecule size
+    camera_distance_scale: float = 3.2  # camera distance = this x molecule size
     # Custom lights: when enabled, replace the auto 3-point rig with this list.
     # {name: {"type","azimuth","elevation","distance","energy","color","size"}}
     use_custom_lights: bool = False

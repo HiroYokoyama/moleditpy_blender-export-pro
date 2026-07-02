@@ -65,6 +65,67 @@ def test_usda_structure():
     assert "primvars:displayColor" in usda
 
 
+def _benzene_with_rings(cfg):
+    mol = make_benzene_like()
+    atoms, bonds = me.extract_geometry(mol)
+    rings = me.extract_rings(mol, None, cfg.ring_aromatic_only)
+    ring_keys = [me.ring_key(r) for r in rings]
+    return atoms, bonds, rings, ring_keys
+
+
+def test_ring_plate_mesh_flat_and_thick():
+    pts = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+    verts, normals, faces = me._ring_plate_mesh(pts, 0.0)
+    assert len(verts) == len(normals) == 8       # top + bottom copies
+    assert len(faces) == 2 * 2 * 3               # two fans of n-2 triangles
+    verts, _normals, faces = me._ring_plate_mesh(pts, 0.2)
+    assert len(faces) == (2 * 2 + 4 * 2) * 3     # fans + 2 tris per side quad
+    zs = sorted({round(v[2], 6) for v in verts})
+    assert zs == [-0.1, 0.1]                     # centered extrusion
+
+
+def test_glb_ring_panel_is_transparent_material():
+    cfg = StyleConfig(ring_style="panel", ring_color="#FF0000",
+                      ring_opacity=0.5)
+    atoms, bonds, rings, ring_keys = _benzene_with_rings(cfg)
+    gltf = _parse_glb(me.build_glb(atoms, bonds, cfg, rings=rings,
+                                   ring_keys=ring_keys))
+    blended = [m for m in gltf["materials"] if m.get("alphaMode") == "BLEND"]
+    assert len(blended) == 1
+    assert blended[0]["pbrMetallicRoughness"]["baseColorFactor"] == \
+        [1.0, 0.0, 0.0, 0.5]
+    assert blended[0]["doubleSided"] is True
+
+
+def test_glb_ring_outline_adds_a_material():
+    cfg_none = StyleConfig(ring_style="none")
+    cfg_line = StyleConfig(ring_style="outline", ring_color="#00FF00")
+    atoms, bonds, rings, ring_keys = _benzene_with_rings(cfg_line)
+    base = _parse_glb(me.build_glb(atoms, bonds, cfg_none))
+    lined = _parse_glb(me.build_glb(atoms, bonds, cfg_line, rings=rings,
+                                    ring_keys=ring_keys))
+    assert len(lined["materials"]) == len(base["materials"]) + 1
+
+
+def test_usda_ring_panel_and_outline():
+    cfg = StyleConfig(ring_style="panel+outline", ring_opacity=0.4)
+    atoms, bonds, rings, ring_keys = _benzene_with_rings(cfg)
+    usda = me.build_usda(atoms, bonds, cfg, rings=rings, ring_keys=ring_keys)
+    assert 'def Mesh "RingPanel_000"' in usda
+    assert "primvars:displayOpacity = [0.4]" in usda
+    assert 'def Cylinder "RingLine_000_0"' in usda
+    # a 6-ring outline is 6 segments
+    assert usda.count("RingLine_000_") == 6
+
+
+def test_export_mesh_file_with_ring_style(tmp_path):
+    cfg = StyleConfig(ring_style="panel+outline")
+    for name in ("mol.glb", "mol.usda"):
+        path = tmp_path / name
+        me.export_mesh_file(make_benzene_like(), cfg, str(path))
+        assert path.stat().st_size > 0
+
+
 def test_export_mesh_file_glb(tmp_path):
     path = tmp_path / "mol.glb"
     me.export_mesh_file(make_benzene_like(), StyleConfig(), str(path))
