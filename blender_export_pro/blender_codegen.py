@@ -126,6 +126,22 @@ def resolve_atom_color(cfg: StyleConfig, symbol: str, orig_index=None) -> tuple:
     return resolve_element_color(cfg, symbol)
 
 
+def _custom_light_list(cfg: StyleConfig):
+    """Custom lights as an ordered list of fully-populated spec dicts."""
+    from .style_config import default_light
+    result = []
+    if not isinstance(cfg.custom_lights, dict):
+        return result
+    for name, spec in cfg.custom_lights.items():
+        entry = default_light()
+        if isinstance(spec, dict):
+            entry.update({k: spec[k] for k in entry if k in spec})
+        entry["name"] = str(name)
+        entry["color"] = [round(c, 4) for c in hex_to_rgb(entry["color"])]
+        result.append(entry)
+    return result
+
+
 def resolve_bond_color(cfg: StyleConfig, color_a, color_b) -> list:
     """Bond color: fixed single color, or the average of its two atoms."""
     if cfg.bond_color_mode == "single":
@@ -434,6 +450,8 @@ KEY_LIGHT_AZIMUTH = {float(cfg.key_light_azimuth)!r}
 KEY_LIGHT_ELEVATION = {float(cfg.key_light_elevation)!r}
 KEY_LIGHT_STRENGTH = {float(cfg.key_light_strength)!r}
 LIGHT_DISTANCE_SCALE = {float(cfg.light_distance_scale)!r}
+USE_CUSTOM_LIGHTS = {cfg.use_custom_lights!r}
+CUSTOM_LIGHTS = {json.dumps(_custom_light_list(cfg))}
 BG_MODE = {cfg.background_mode!r}
 BG_COLOR = {json.dumps([round(c, 4) for c in hex_to_rgb(cfg.background_color)])}
 HDRI_PATH = {cfg.hdri_path!r}
@@ -730,13 +748,41 @@ def setup_scene(coll):
         return
     center, size = bounding_box()
 
-    def add_light(name, kind, location, energy):
+    def add_light(name, kind, location, energy, color=None, area_size=None):
         light = bpy.data.lights.new(name, kind)
         light.energy = energy
+        if color is not None:
+            light.color = (color[0], color[1], color[2])
+        if area_size is not None and hasattr(light, "size"):
+            light.size = area_size
         obj = bpy.data.objects.new(name, light)
         obj.location = location
+        # aim the light at the molecule center
+        aim = center - location
+        if aim.length > 1e-6:
+            obj.rotation_mode = "QUATERNION"
+            obj.rotation_quaternion = aim.to_track_quat("-Z", "Y")
         bpy.context.scene.collection.objects.link(obj)
         return obj
+
+    def place(azimuth, elevation, distance_scale):
+        az, el = math.radians(azimuth), math.radians(elevation)
+        d = size * distance_scale
+        return center + Vector((math.cos(el) * math.sin(az),
+                                -math.cos(el) * math.cos(az),
+                                math.sin(el))) * d
+
+    if USE_CUSTOM_LIGHTS and CUSTOM_LIGHTS:
+        for spec in CUSTOM_LIGHTS:
+            add_light(
+                spec.get("name", "Light"),
+                spec.get("type", "AREA"),
+                place(spec.get("azimuth", -45.0), spec.get("elevation", 45.0),
+                      spec.get("distance", 2.5)),
+                spec.get("energy", 1000.0),
+                color=spec.get("color"),
+                area_size=spec.get("size"))
+        return
 
     dist = size * LIGHT_DISTANCE_SCALE
     key_energy = (1000.0 if SCENE_PRESET == "studio" else 400.0) * KEY_LIGHT_STRENGTH

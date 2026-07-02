@@ -23,6 +23,20 @@ SCENE_PRESETS = ("none", "studio", "dark")
 BACKGROUND_MODES = ("preset", "color", "hdri", "transparent")
 RENDER_ENGINES = ("keep", "cycles", "eevee")
 BOND_COLOR_MODES = ("atoms", "single")
+LIGHT_TYPES = ("AREA", "POINT", "SUN", "SPOT")
+
+
+def default_light() -> dict:
+    """A sensible default custom-light spec."""
+    return {
+        "type": "AREA",
+        "azimuth": -45.0,
+        "elevation": 45.0,
+        "distance": 2.5,
+        "energy": 1000.0,
+        "color": "#FFFFFF",
+        "size": 5.0,
+    }
 IMAGE_FORMATS = ("PNG", "JPEG", "TIFF", "OPEN_EXR", "WEBP")
 LABEL_MODES = ("none", "symbol", "symbol_index", "index")
 RING_STYLES = ("none", "panel")
@@ -109,6 +123,10 @@ class StyleConfig:
     key_light_elevation: float = 45.0  # degrees above the horizon
     key_light_strength: float = 1.0    # multiplier on the preset energy
     light_distance_scale: float = 2.5  # light distance = this x molecule size
+    # Custom lights: when enabled, replace the auto 3-point rig with this list.
+    # {name: {"type","azimuth","elevation","distance","energy","color","size"}}
+    use_custom_lights: bool = False
+    custom_lights: dict = field(default_factory=dict)
 
     # Background & render
     background_mode: str = "preset"  # preset | color | hdri | transparent
