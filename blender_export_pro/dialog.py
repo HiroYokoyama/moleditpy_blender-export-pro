@@ -86,6 +86,7 @@ class BlenderExportDialog(QDialog):
         self._scroll.setWidget(self._tabs)
         self._scroll.setVisible(False)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setMinimumHeight(400)
         layout.addWidget(self._scroll)
 
         self._build_atoms_tab()
