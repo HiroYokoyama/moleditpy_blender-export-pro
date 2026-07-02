@@ -86,8 +86,9 @@ def test_apply_lighting_uses_config_lights(monkeypatch):
     """Preview lighting must mirror the configured lights on the plotter."""
     import types
     from unittest.mock import MagicMock
+    import pytest
 
-    import numpy as np_real
+    np_real = pytest.importorskip("numpy")
     from blender_export_pro import preview_style
     from blender_export_pro.style_config import StyleConfig
 
@@ -120,8 +121,9 @@ def test_apply_lighting_uses_config_lights(monkeypatch):
 def test_apply_lighting_falls_back_to_lightkit(monkeypatch):
     import types
     from unittest.mock import MagicMock
+    import pytest
 
-    import numpy as np_real
+    np_real = pytest.importorskip("numpy")
     from blender_export_pro import preview_style
     from blender_export_pro.style_config import StyleConfig
 
