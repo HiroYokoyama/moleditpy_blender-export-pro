@@ -62,6 +62,37 @@ def _get_view_3d_manager(context):
     return getattr(mw, "view_3d_manager", None)
 
 
+# Display labels of the app's built-in styles in the 3D Style menu.
+_STANDARD_STYLE_LABELS = {
+    "ball_and_stick": "Ball & Stick",
+    "cpk": "CPK (Space-filling)",
+    "wireframe": "Wireframe",
+    "stick": "Stick",
+}
+
+
+def sync_style_menu(context, style_name: str) -> None:
+    """Check the matching entry in the app's 3D Style menu.
+
+    set_3d_style() changes the style but not the menu's checked action, so
+    switching from the plugin would leave the menu stale.
+    """
+    mw = context.get_main_window()
+    try:
+        menu = mw.init_manager.style_button.menu()
+    except AttributeError:
+        return
+    if menu is None:
+        return
+    label = _STANDARD_STYLE_LABELS.get(style_name, style_name)
+    try:
+        for action in menu.actions():
+            if action.isCheckable():
+                action.setChecked(action.text() == label)
+    except Exception:
+        logging.exception("BlenderExportPro: style menu sync failed")
+
+
 def activate_preview_style(context) -> bool:
     """Switch the 3D view to the plugin's preview style. Returns success."""
     v3d = _get_view_3d_manager(context)
@@ -70,6 +101,7 @@ def activate_preview_style(context) -> bool:
             "Blender Export Pro: 3D view is not available.", 4000)
         return False
     v3d.set_3d_style(STYLE_NAME)
+    sync_style_menu(context, STYLE_NAME)
     return True
 
 
@@ -79,6 +111,7 @@ def activate_standard_style(context) -> bool:
     if v3d is None or not hasattr(v3d, "set_3d_style"):
         return False
     v3d.set_3d_style(STANDARD_STYLE)
+    sync_style_menu(context, STANDARD_STYLE)
     return True
 
 

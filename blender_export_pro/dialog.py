@@ -1334,7 +1334,9 @@ class BlenderExportDialog(QDialog):
             self._refresh_lights_table()
             self._update_atom_override_label()
             self._update_element_color_label()
-            self._refresh_preview_if_active()
+            # Applying a preset switches the 3D view to the styled preview
+            # right away, so the effect is visible without extra clicks.
+            self._activate_preview()
             self._context.show_status_message(f"Preset applied: {name}", 3000)
 
     def _load_preset_file(self):

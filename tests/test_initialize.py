@@ -98,6 +98,47 @@ def test_activate_preview_style_without_3d_view():
     assert ctx.show_status_message.called
 
 
+def _fake_style_menu(ctx, labels):
+    """Install a fake 3D Style menu with checkable actions on the context."""
+    actions = []
+    for text in labels:
+        act = MagicMock()
+        act.text.return_value = text
+        act.isCheckable.return_value = True
+        actions.append(act)
+    menu = MagicMock()
+    menu.actions.return_value = actions
+    ctx.get_main_window.return_value.init_manager.style_button.menu \
+        .return_value = menu
+    return actions
+
+
+def test_activate_preview_checks_menu_entry():
+    ctx = make_context()
+    actions = _fake_style_menu(
+        ctx, ["Ball & Stick", "Wireframe", plugin.STYLE_NAME])
+    plugin.activate_preview_style(ctx)
+    actions[0].setChecked.assert_called_with(False)
+    actions[1].setChecked.assert_called_with(False)
+    actions[2].setChecked.assert_called_with(True)
+
+
+def test_activate_standard_checks_ball_and_stick():
+    ctx = make_context()
+    actions = _fake_style_menu(
+        ctx, ["Ball & Stick", "Wireframe", plugin.STYLE_NAME])
+    plugin.activate_standard_style(ctx)
+    actions[0].setChecked.assert_called_with(True)
+    actions[1].setChecked.assert_called_with(False)
+    actions[2].setChecked.assert_called_with(False)
+
+
+def test_sync_style_menu_tolerates_missing_menu():
+    ctx = make_context()
+    ctx.get_main_window.return_value = MagicMock(spec=[])  # no init_manager
+    plugin.sync_style_menu(ctx, plugin.STYLE_NAME)  # must not raise
+
+
 def test_is_preview_style_active():
     ctx = make_context()
     v3d = ctx.get_main_window.return_value.view_3d_manager
