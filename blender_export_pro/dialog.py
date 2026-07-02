@@ -44,6 +44,7 @@ from .style_config import (
     BOND_STYLES,
     IMAGE_FORMATS,
     LABEL_MODES,
+    LIGHT_TYPES,
     MATERIAL_PRESETS,
     RENDER_ENGINES,
     RING_COLOR_MODES,
@@ -590,6 +591,8 @@ class BlenderExportDialog(QDialog):
             "0 = no animation. 240 frames ≈ 10 s at 24 fps.")
         form.addRow("Turntable frames:", self.turntable_frames)
 
+        self._build_lighting_group(form)
+
         self.background_mode = QComboBox()
         self.background_mode.addItems(BACKGROUND_MODES)
         self.background_mode.setToolTip(
@@ -673,6 +676,55 @@ class BlenderExportDialog(QDialog):
         form.addRow("Image format:", self.image_format)
 
         self._tabs.addTab(tab, "Scene")
+
+    def _build_lighting_group(self, form):
+        group = QGroupBox("Lighting")
+        gform = QFormLayout(group)
+
+        self.key_light_azimuth = self._dspin(
+            -180.0, 180.0, 5.0, "Key light direction around the molecule.")
+        gform.addRow("Key azimuth (°):", self.key_light_azimuth)
+        self.key_light_elevation = self._dspin(
+            -90.0, 90.0, 5.0, "Key light height above the horizon.")
+        gform.addRow("Key elevation (°):", self.key_light_elevation)
+        self.key_light_strength = self._dspin(
+            0.0, 10.0, 0.1, "Multiplier on the key light power.")
+        gform.addRow("Key strength:", self.key_light_strength)
+        self.light_distance_scale = self._dspin(
+            0.5, 10.0, 0.5, "Light distance = this × molecule size.")
+        gform.addRow("Light distance:", self.light_distance_scale)
+
+        self.use_custom_lights = QCheckBox("Use custom lights (below)")
+        self.use_custom_lights.setToolTip(
+            "Replace the automatic 3-point rig with your own list of lights.")
+        gform.addRow(self.use_custom_lights)
+
+        self.lights_table = QTableWidget(0, 7)
+        self.lights_table.setHorizontalHeaderLabels(
+            ["Name", "Type", "Azimuth", "Elevation", "Distance", "Energy",
+             "Color"])
+        self.lights_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows)
+        self.lights_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection)
+        self.lights_table.verticalHeader().setVisible(False)
+        self.lights_table.setMinimumHeight(120)
+        self.lights_table.setToolTip(
+            "Each row is one light with its own type, position, intensity "
+            "(energy) and color.")
+        gform.addRow(self.lights_table)
+
+        row = QHBoxLayout()
+        add_btn = QPushButton("Add Light")
+        add_btn.clicked.connect(self._add_light)
+        row.addWidget(add_btn)
+        del_btn = QPushButton("Remove Selected Light")
+        del_btn.clicked.connect(self._remove_light)
+        row.addWidget(del_btn)
+        gform.addRow(row)
+
+        form.addRow(group)
+        self._refresh_lights_table()
 
     def _build_export_tab(self):
         tab = QWidget()
@@ -782,6 +834,11 @@ class BlenderExportDialog(QDialog):
         ("add_ground_plane", "bool"),
         ("add_camera", "bool"),
         ("turntable_frames", "int"),
+        ("key_light_azimuth", "float"),
+        ("key_light_elevation", "float"),
+        ("key_light_strength", "float"),
+        ("light_distance_scale", "float"),
+        ("use_custom_lights", "bool"),
         ("background_mode", "combo"),
         ("background_color", "text"),
         ("hdri_path", "text"),
@@ -1025,6 +1082,104 @@ class BlenderExportDialog(QDialog):
         self._refresh_preview_if_active()
         self._context.show_status_message("All per-atom overrides reset.", 3000)
 
+    # ------------------------------------------------------------- lights
+
+    def _refresh_lights_table(self):
+        from .style_config import default_light
+        table = self.lights_table
+        self._loading = True
+        try:
+            table.setRowCount(0)
+            self._light_names = []
+            lights = (self._cfg.custom_lights
+                      if isinstance(self._cfg.custom_lights, dict) else {})
+            table.setRowCount(len(lights))
+            for r, (name, spec) in enumerate(lights.items()):
+                base = default_light()
+                if isinstance(spec, dict):
+                    base.update(spec)
+                self._light_names.append(name)
+
+                name_edit = QLineEdit(str(name))
+                table.setCellWidget(r, 0, name_edit)
+                type_cb = QComboBox()
+                type_cb.addItems(LIGHT_TYPES)
+                type_cb.setCurrentText(str(base["type"]))
+                table.setCellWidget(r, 1, type_cb)
+                az = self._dspin(-180.0, 180.0, 5.0)
+                az.setValue(float(base["azimuth"]))
+                table.setCellWidget(r, 2, az)
+                el = self._dspin(-90.0, 90.0, 5.0)
+                el.setValue(float(base["elevation"]))
+                table.setCellWidget(r, 3, el)
+                dist = self._dspin(0.5, 20.0, 0.5)
+                dist.setValue(float(base["distance"]))
+                table.setCellWidget(r, 4, dist)
+                energy = QDoubleSpinBox()
+                energy.setRange(0.0, 1_000_000.0)
+                energy.setDecimals(0)
+                energy.setSingleStep(50.0)
+                energy.setValue(float(base["energy"]))
+                energy.setToolTip("Light intensity (power).")
+                table.setCellWidget(r, 5, energy)
+                color = QLineEdit(str(base["color"]))
+                color.setToolTip("Light color #RRGGBB.")
+                table.setCellWidget(r, 6, color)
+
+                handler = lambda *_a: self._rebuild_custom_lights()
+                name_edit.editingFinished.connect(handler)
+                type_cb.currentTextChanged.connect(handler)
+                az.valueChanged.connect(handler)
+                el.valueChanged.connect(handler)
+                dist.valueChanged.connect(handler)
+                energy.valueChanged.connect(handler)
+                color.editingFinished.connect(handler)
+            table.resizeColumnsToContents()
+        finally:
+            self._loading = False
+
+    def _rebuild_custom_lights(self):
+        if self._loading:
+            return
+        table = self.lights_table
+        lights = {}
+        for r in range(table.rowCount()):
+            name = table.cellWidget(r, 0).text().strip() or "Light"
+            unique, k = name, 1
+            while unique in lights:
+                unique = f"{name}_{k}"
+                k += 1
+            lights[unique] = {
+                "type": table.cellWidget(r, 1).currentText(),
+                "azimuth": float(table.cellWidget(r, 2).value()),
+                "elevation": float(table.cellWidget(r, 3).value()),
+                "distance": float(table.cellWidget(r, 4).value()),
+                "energy": float(table.cellWidget(r, 5).value()),
+                "color": table.cellWidget(r, 6).text().strip() or "#FFFFFF",
+            }
+        self._cfg.custom_lights = lights
+
+    def _add_light(self):
+        from .style_config import default_light
+        if not isinstance(self._cfg.custom_lights, dict):
+            self._cfg.custom_lights = {}
+        base, n = "Light", len(self._cfg.custom_lights) + 1
+        name = f"{base}{n}"
+        while name in self._cfg.custom_lights:
+            n += 1
+            name = f"{base}{n}"
+        self._cfg.custom_lights[name] = default_light()
+        self.use_custom_lights.setChecked(True)
+        self._refresh_lights_table()
+
+    def _remove_light(self):
+        row = self.lights_table.currentRow()
+        if 0 <= row < len(self._light_names):
+            name = self._light_names[row]
+            if isinstance(self._cfg.custom_lights, dict):
+                self._cfg.custom_lights.pop(name, None)
+            self._refresh_lights_table()
+
     # ---------------------------------------------------------- ring table
 
     def _refresh_ring_table(self, *_args):
@@ -1176,6 +1331,7 @@ class BlenderExportDialog(QDialog):
         if path and sc.load_preset(self._cfg, path):
             self._refresh_widgets()
             self._refresh_ring_table()
+            self._refresh_lights_table()
             self._update_atom_override_label()
             self._update_element_color_label()
             self._refresh_preview_if_active()
@@ -1187,6 +1343,7 @@ class BlenderExportDialog(QDialog):
         if path and sc.load_preset(self._cfg, path):
             self._refresh_widgets()
             self._refresh_ring_table()
+            self._refresh_lights_table()
             self._update_atom_override_label()
             self._update_element_color_label()
             self._refresh_preview_if_active()
@@ -1205,6 +1362,7 @@ class BlenderExportDialog(QDialog):
         self._cfg.reset_defaults()
         self._refresh_widgets()
         self._refresh_ring_table()
+        self._refresh_lights_table()
         self._update_atom_override_label()
         self._update_element_color_label()
         self._refresh_preview_if_active()
