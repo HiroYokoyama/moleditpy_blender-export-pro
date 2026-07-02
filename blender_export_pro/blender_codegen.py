@@ -210,12 +210,15 @@ def extract_rings(mol, selected_indices=None, aromatic_only=True,
     return rings
 
 
-def _atom_records(atoms, cfg: StyleConfig, atom_keys=None):
-    """Per-atom (symbol, position, radius, color) records for the script.
+def _atom_records(atoms, cfg: StyleConfig, atom_keys=None, hidden_atoms=None):
+    """Per-atom (symbol, position, radius, color, visible) records.
 
     atom_keys: original RDKit indices per atom (for per-atom overrides);
     defaults to the export position.
+    hidden_atoms: export-order indices whose spheres should not be drawn
+    (e.g. atoms of a ring rendered as a panel only).
     """
+    hidden = hidden_atoms or set()
     records = []
     for pos_idx, (symbol, pos) in enumerate(atoms):
         orig = atom_keys[pos_idx] if atom_keys else pos_idx
@@ -227,16 +230,24 @@ def _atom_records(atoms, cfg: StyleConfig, atom_keys=None):
                 "pos": [round(c, 6) for c in pos],
                 "radius": round(radius, 6),
                 "color": [round(c, 4) for c in color],
+                "visible": pos_idx not in hidden,
             }
         )
     return records
 
 
-def _bond_records(bonds, cfg: StyleConfig):
-    return [
-        {"a": i, "b": j, "order": order if cfg.show_multiple_bonds else 1}
-        for i, j, order in bonds
-    ]
+def _bond_records(bonds, cfg: StyleConfig, hide_bond_rings=None):
+    hide_rings = hide_bond_rings or []
+    records = []
+    for i, j, order in bonds:
+        visible = not any(i in members and j in members
+                          for members in hide_rings)
+        records.append({
+            "a": i, "b": j,
+            "order": order if cfg.show_multiple_bonds else 1,
+            "visible": visible,
+        })
+    return records
 
 
 def resolve_ring_style(cfg: StyleConfig, key: str) -> dict:
@@ -252,7 +263,32 @@ def resolve_ring_style(cfg: StyleConfig, key: str) -> dict:
         "thickness": float(override.get("thickness", cfg.ring_thickness)),
         "opacity": float(override.get("opacity", cfg.ring_opacity)),
         "color": override.get("color") or None,  # None -> use global mode
+        "hide_atoms": bool(override.get("hide_atoms", cfg.ring_hide_atoms)),
+        "hide_bonds": bool(override.get("hide_bonds", cfg.ring_hide_bonds)),
     }
+
+
+def ring_hidden_geometry(cfg: StyleConfig, rings, ring_keys=None):
+    """Compute which atoms/ring-bonds to hide because a panel replaces them.
+
+    Returns (hidden_atoms: set of export indices, hide_bond_rings: list of
+    export-index sets for rings whose internal bonds are hidden). Only rings
+    that are actually drawn as a visible panel contribute.
+    """
+    hidden_atoms = set()
+    hide_bond_rings = []
+    if cfg.ring_style != "panel":
+        return hidden_atoms, hide_bond_rings
+    for pos, ring in enumerate(rings or []):
+        key = ring_keys[pos] if ring_keys else ring_key(ring)
+        style = resolve_ring_style(cfg, key)
+        if not style["visible"]:
+            continue
+        if style["hide_atoms"]:
+            hidden_atoms.update(ring)
+        if style["hide_bonds"]:
+            hide_bond_rings.append(set(ring))
+    return hidden_atoms, hide_bond_rings
 
 
 def _ring_records(atoms, rings, cfg: StyleConfig, ring_keys=None):
@@ -302,8 +338,11 @@ def generate_script(atoms, bonds, cfg: StyleConfig, rings=None,
     if cfg.roughness_override >= 0.0:
         params["roughness"] = min(cfg.roughness_override, 1.0)
 
-    atom_data = json.dumps(_atom_records(atoms, cfg, atom_keys), indent=1)
-    bond_data = json.dumps(_bond_records(bonds, cfg), indent=1)
+    hidden_atoms, hide_bond_rings = ring_hidden_geometry(cfg, rings, ring_keys)
+    atom_data = json.dumps(
+        _atom_records(atoms, cfg, atom_keys, hidden_atoms), indent=1)
+    bond_data = json.dumps(
+        _bond_records(bonds, cfg, hide_bond_rings), indent=1)
     ring_data = json.dumps(_ring_records(atoms, rings, cfg, ring_keys), indent=1)
 
     generated_on = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -844,9 +883,11 @@ def main():
         clear_scene()
     coll = get_collection()
     for idx, rec in enumerate(ATOMS):
-        create_atom(coll, idx, rec)
+        if rec.get("visible", True):
+            create_atom(coll, idx, rec)
     for idx, rec in enumerate(BONDS):
-        create_bond(coll, idx, rec)
+        if rec.get("visible", True):
+            create_bond(coll, idx, rec)
     if RING_STYLE == "panel":
         for idx, rec in enumerate(RINGS):
             create_ring_panel(coll, idx, rec)

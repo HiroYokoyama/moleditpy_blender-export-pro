@@ -72,6 +72,8 @@ class StyleConfig:
     ring_color_mode: str = "custom"   # "custom" | "match_atoms"
     ring_color: str = "#E8D44D"
     ring_opacity: float = 0.55
+    ring_hide_atoms: bool = False     # hide atoms of paneled rings (show plate only)
+    ring_hide_bonds: bool = False     # hide the ring's internal bonds too
     # Per-ring style overrides, keyed by ring_key() (sorted atom indices,
     # e.g. "0-1-2-3-4-5"). Values: {"visible", "scale", "thickness",
     # "color", "opacity"} — missing keys fall back to the globals above.

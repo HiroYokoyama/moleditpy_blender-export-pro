@@ -347,7 +347,42 @@ def test_resolve_ring_style_defaults():
     assert style == {
         "visible": True, "scale": 0.8, "thickness": cfg.ring_thickness,
         "opacity": 0.4, "color": None,
+        "hide_atoms": False, "hide_bonds": False,
     }
+
+
+def test_ring_hidden_geometry_global_and_per_ring():
+    rings = [(0, 1, 2, 3, 4, 5)]
+    keys = ["0-1-2-3-4-5"]
+    # global hide
+    cfg = StyleConfig(ring_style="panel", ring_hide_atoms=True,
+                      ring_hide_bonds=True)
+    atoms, bond_rings = bc.ring_hidden_geometry(cfg, rings, keys)
+    assert atoms == {0, 1, 2, 3, 4, 5}
+    assert bond_rings == [{0, 1, 2, 3, 4, 5}]
+    # per-ring hide overrides global off
+    cfg = StyleConfig(ring_style="panel",
+                      ring_overrides={"0-1-2-3-4-5": {"hide_atoms": True}})
+    atoms, _ = bc.ring_hidden_geometry(cfg, rings, keys)
+    assert atoms == {0, 1, 2, 3, 4, 5}
+    # ring_style none => nothing hidden
+    cfg = StyleConfig(ring_style="none", ring_hide_atoms=True)
+    atoms, _ = bc.ring_hidden_geometry(cfg, rings, keys)
+    assert atoms == set()
+    # hidden panel => nothing hidden
+    cfg = StyleConfig(ring_style="panel", ring_hide_atoms=True,
+                      ring_overrides={"0-1-2-3-4-5": {"visible": False}})
+    atoms, _ = bc.ring_hidden_geometry(cfg, rings, keys)
+    assert atoms == set()
+
+
+def test_hidden_atoms_and_bonds_marked_invisible():
+    from conftest import make_benzene_like
+    cfg = StyleConfig(ring_style="panel", ring_hide_atoms=True,
+                      ring_hide_bonds=True)
+    script = bc.generate_script_from_mol(make_benzene_like(), cfg)
+    compile(script, "<generated>", "exec")
+    assert '"visible": false' in script
 
 
 def test_resolve_ring_style_override():
