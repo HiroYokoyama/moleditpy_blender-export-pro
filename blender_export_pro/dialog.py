@@ -1158,6 +1158,7 @@ class BlenderExportDialog(QDialog):
                 "color": table.cellWidget(r, 6).text().strip() or "#FFFFFF",
             }
         self._cfg.custom_lights = lights
+        self._refresh_preview_if_active()
 
     def _add_light(self):
         from .style_config import default_light
@@ -1171,6 +1172,7 @@ class BlenderExportDialog(QDialog):
         self._cfg.custom_lights[name] = default_light()
         self.use_custom_lights.setChecked(True)
         self._refresh_lights_table()
+        self._refresh_preview_if_active()
 
     def _remove_light(self):
         row = self.lights_table.currentRow()
@@ -1179,6 +1181,7 @@ class BlenderExportDialog(QDialog):
             if isinstance(self._cfg.custom_lights, dict):
                 self._cfg.custom_lights.pop(name, None)
             self._refresh_lights_table()
+            self._refresh_preview_if_active()
 
     # ---------------------------------------------------------- ring table
 
