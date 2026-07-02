@@ -44,7 +44,8 @@ def _unit_sphere(segments=16, rings=8):
         for s in range(segments):
             a = r * row + s
             b = a + row
-            faces += [a, b, a + 1, a + 1, b, b + 1]
+            # counter-clockwise seen from outside (glTF front face)
+            faces += [a, a + 1, b, b, a + 1, b + 1]
     return verts, normals, faces
 
 
@@ -60,7 +61,8 @@ def _unit_cylinder(segments=12):
         normals.append((cx, cy, 0.0))
     for s in range(segments):
         a = s * 2
-        faces += [a, a + 1, a + 2, a + 2, a + 1, a + 3]
+        # counter-clockwise seen from outside (glTF front face)
+        faces += [a, a + 2, a + 1, a + 1, a + 2, a + 3]
     return verts, normals, faces
 
 

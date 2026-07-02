@@ -23,6 +23,30 @@ def _parse_glb(blob):
     return gltf
 
 
+def test_unit_primitives_wound_counter_clockwise_outward():
+    """glTF culls clockwise faces: inward winding makes surfaces look
+    transparent (you see the far inside wall). Every triangle's facet
+    normal must point away from the primitive's axis/center."""
+    def facet_normal(p0, p1, p2):
+        u = tuple(p1[k] - p0[k] for k in range(3))
+        v = tuple(p2[k] - p0[k] for k in range(3))
+        return me._cross(u, v)
+
+    verts, _n, faces = me._unit_sphere()
+    for t in range(0, len(faces), 3):
+        p0, p1, p2 = (verts[faces[t + m]] for m in range(3))
+        n = facet_normal(p0, p1, p2)
+        c = tuple((p0[k] + p1[k] + p2[k]) / 3.0 for k in range(3))
+        assert sum(n[k] * c[k] for k in range(3)) >= 0.0   # outward
+
+    verts, _n, faces = me._unit_cylinder()
+    for t in range(0, len(faces), 3):
+        p0, p1, p2 = (verts[faces[t + m]] for m in range(3))
+        n = facet_normal(p0, p1, p2)
+        c = tuple((p0[k] + p1[k] + p2[k]) / 3.0 for k in range(3))
+        assert n[0] * c[0] + n[1] * c[1] > 0.0             # radially outward
+
+
 def test_glb_is_valid_and_has_geometry():
     atoms, bonds = me.extract_geometry(make_benzene_like())
     gltf = _parse_glb(me.build_glb(atoms, bonds, StyleConfig()))
