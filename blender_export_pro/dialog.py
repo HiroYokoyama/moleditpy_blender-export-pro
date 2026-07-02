@@ -687,6 +687,17 @@ class BlenderExportDialog(QDialog):
         tab = QWidget()
         form = QFormLayout(tab)
 
+        self.deform_atoms = QCheckBox("Deform atoms")
+        self.deform_atoms.setToolTip(
+            "Apply the deformation below to atom spheres.")
+        form.addRow(self.deform_atoms)
+
+        self.deform_bonds = QCheckBox("Deform bonds")
+        self.deform_bonds.setToolTip(
+            "Apply the deformation below to bond cylinders. E.g. off + "
+            "noisy atoms = lumpy clay atoms on clean straight bonds.")
+        form.addRow(self.deform_bonds)
+
         self.deformation_noise = self._dspin(
             0.0, 2.0, 0.05,
             "Organic surface wobble (Blender Displace modifier). "
@@ -1089,6 +1100,8 @@ class BlenderExportDialog(QDialog):
         ("ring_bevel", "bool"),
         ("ring_hide_atoms", "bool"),
         ("ring_hide_bonds", "bool"),
+        ("deform_atoms", "bool"),
+        ("deform_bonds", "bool"),
         ("deformation_noise", "float"),
         ("deformation_noise_scale", "float"),
         ("deformation_bend", "float"),

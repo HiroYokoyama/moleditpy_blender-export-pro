@@ -411,6 +411,16 @@ def test_hide_all_bonds_marks_every_record_invisible():
     assert "'visible': True" not in script.split("BONDS =")[1].split("RINGS")[0]
 
 
+def test_deform_scope_constants_in_script():
+    script = _generate(deform_atoms=False, deform_bonds=True,
+                       deformation_noise=0.2)
+    compile(script, "<generated>", "exec")
+    assert "DEFORM_ATOMS = False" in script
+    assert "DEFORM_BONDS = True" in script
+    assert "if DEFORM_ATOMS:" in script
+    assert "if DEFORM_BONDS:" in script
+
+
 def test_bond_key_is_sorted():
     assert bc.bond_key(7, 3) == "3-7"
     assert bc.bond_key(3, 7) == "3-7"

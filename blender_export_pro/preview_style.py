@@ -160,7 +160,7 @@ def _apply_lighting(plotter, cfg: StyleConfig, center, size) -> None:
         _ensure_lighting(plotter)
 
 
-def _displace(mesh, cfg: StyleConfig, _rng=None) -> None:
+def _displace(mesh, cfg: StyleConfig) -> None:
     """Smooth noise displacement along normals, mimicking the Displace
     modifier — same noise_displacement() field as the glTF export."""
     if cfg.deformation_noise <= 0.0:
@@ -199,7 +199,8 @@ def _add_smooth_gradient_bond(plotter, cfg, mat, seg_start, direction,
         t = np.clip((pts - seg_start) @ direction / length, 0.0, 1.0)
         colors = (np.outer(1.0 - t, np.asarray(color_a, dtype=float))
                   + np.outer(t, np.asarray(color_b, dtype=float)))
-        _displace(cyl, cfg)
+        if cfg.deform_bonds:
+            _displace(cyl, cfg)
         plotter.add_mesh(
             cyl,
             scalars=colors,
@@ -277,7 +278,8 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
                 -cfg.atom_jitter, cfg.atom_jitter, 3) * 0.5
             pts = np.asarray(sphere.points)
             sphere.points = (pts - np.array(pos)) * scale + np.array(pos)
-        _displace(sphere, cfg, rng)
+        if cfg.deform_atoms:
+            _displace(sphere, cfg)
         plotter.add_mesh(
             sphere,
             color=_atom_color(symbol, cfg, idx),
@@ -350,7 +352,8 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
                         height=float(np.linalg.norm(dash_end - dash_start)),
                         resolution=max(6, cfg.bond_segments),
                     )
-                    _displace(cyl, cfg, rng)
+                    if cfg.deform_bonds:
+                        _displace(cyl, cfg)
                     plotter.add_mesh(
                         cyl,
                         color=c,
@@ -378,7 +381,8 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
                     height=seg_len,
                     resolution=max(6, cfg.bond_segments),
                 )
-                _displace(cyl, cfg, rng)
+                if cfg.deform_bonds:
+                    _displace(cyl, cfg)
                 plotter.add_mesh(
                     cyl,
                     color=seg_color,

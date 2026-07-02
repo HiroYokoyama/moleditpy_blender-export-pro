@@ -280,6 +280,38 @@ def test_glb_noise_deforms_atoms_but_not_ring_plates():
             assert plain[key].positions != noisy[key].positions
 
 
+def test_deform_scope_atoms_vs_bonds_in_glb():
+    """deform_atoms / deform_bonds gate the noise bake independently."""
+    atoms = [("C", (0.0, 0.0, 0.0)), ("O", (2.0, 0.0, 0.0))]
+    bonds = [(0, 1, 1, False)]
+
+    def groups(cfg):
+        return {k: g.positions for k, (g, _r) in
+                me.build_color_groups(atoms, bonds, cfg).items()}
+
+    plain = groups(StyleConfig())
+    bonds_only = groups(StyleConfig(deformation_noise=0.3,
+                                    deform_atoms=False, deform_bonds=True))
+    atoms_only = groups(StyleConfig(deformation_noise=0.3,
+                                    deform_atoms=True, deform_bonds=False))
+
+    # C and O sphere groups are pure atoms; the averaged bond color group
+    # is pure bond geometry.
+    from blender_export_pro.blender_codegen import (
+        resolve_atom_color, resolve_bond_color)
+    cfg = StyleConfig()
+    c_rgb = resolve_atom_color(cfg, "C")
+    o_rgb = resolve_atom_color(cfg, "O")
+    bond_key_ = "%.4f_%.4f_%.4f_%.4f" % (
+        *resolve_bond_color(cfg, c_rgb, o_rgb), 1.0)
+    atom_keys = [k for k in plain if k != bond_key_]
+
+    assert plain[bond_key_] != bonds_only[bond_key_]
+    assert all(plain[k] == bonds_only[k] for k in atom_keys)
+    assert plain[bond_key_] == atoms_only[bond_key_]
+    assert all(plain[k] != atoms_only[k] for k in atom_keys)
+
+
 def test_curve_bonds_get_bend_twist_modifiers():
     from blender_export_pro import blender_codegen as bc
     atoms, bonds = me.extract_geometry(make_ethanol_like())

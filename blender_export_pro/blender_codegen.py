@@ -561,6 +561,8 @@ RING_THICKNESS = {float(cfg.ring_thickness)!r}
 RING_OPACITY = {float(cfg.ring_opacity)!r}
 RING_OUTLINE_RADIUS = {float(cfg.ring_outline_radius)!r}
 RING_BEVEL = {cfg.ring_bevel!r}
+DEFORM_ATOMS = {cfg.deform_atoms!r}
+DEFORM_BONDS = {cfg.deform_bonds!r}
 NOISE_STRENGTH = {float(cfg.deformation_noise)!r}
 NOISE_SCALE = {float(cfg.deformation_noise_scale)!r}
 BEND_DEG = {float(cfg.deformation_bend)!r}
@@ -783,7 +785,8 @@ def create_atom(coll, index, rec):
         obj.data.materials.append(mat)
     link_to(coll, obj)
     shade_smooth(obj)
-    add_deform_modifiers(obj)
+    if DEFORM_ATOMS:
+        add_deform_modifiers(obj)
     return obj
 
 
@@ -834,7 +837,8 @@ def create_bond_segment(coll, name, start, end, radius, color,
         obj.data.materials.append(mat)
     link_to(coll, obj)
     shade_smooth(obj)
-    add_deform_modifiers(obj)
+    if DEFORM_BONDS:
+        add_deform_modifiers(obj)
     return obj
 
 

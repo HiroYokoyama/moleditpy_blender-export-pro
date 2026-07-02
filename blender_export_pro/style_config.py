@@ -111,6 +111,8 @@ class StyleConfig:
     ring_overrides: dict = field(default_factory=dict)
 
     # Deformation
+    deform_atoms: bool = True        # apply the deformation to atom spheres
+    deform_bonds: bool = True        # apply the deformation to bond cylinders
     deformation_noise: float = 0.0   # Displace modifier strength
     deformation_noise_scale: float = 1.5
     deformation_bend: float = 0.0    # SimpleDeform bend angle (degrees)

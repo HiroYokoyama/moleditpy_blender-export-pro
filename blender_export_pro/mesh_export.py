@@ -178,12 +178,19 @@ class _ColorGroup:
         self.normals = []
         self.indices = []
 
-    def add(self, verts, normals, faces, transform, normal_transform):
+    def add(self, verts, normals, faces, transform, normal_transform,
+            displace=None):
+        """*displace*: optional callable(point) -> scalar noise offset,
+        applied along the vertex normal (matches the preview's 0.5 factor)."""
         base = len(self.positions)
-        for v in verts:
-            self.positions.append(transform(v))
-        for n in normals:
-            self.normals.append(_norm(normal_transform(n)))
+        new_pos = [transform(v) for v in verts]
+        new_nrm = [_norm(normal_transform(n)) for n in normals]
+        if displace is not None:
+            new_pos = [
+                tuple(p[k] + n[k] * displace(p) * 0.5 for k in range(3))
+                for p, n in zip(new_pos, new_nrm)]
+        self.positions.extend(new_pos)
+        self.normals.extend(new_nrm)
         self.indices.extend(base + i for i in faces)
 
 
@@ -261,6 +268,13 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
     # squash factors line up with what the other renderers draw.
     jitter_rng = random.Random(42) if cfg.atom_jitter > 0.0 else None
 
+    displace_fn = None
+    if cfg.deformation_noise > 0.0:
+        displace_fn = lambda p: noise_displacement(
+            p, cfg.deformation_noise, cfg.deformation_noise_scale)
+    atom_displace = displace_fn if cfg.deform_atoms else None
+    bond_displace = displace_fn if cfg.deform_bonds else None
+
     colors = []
     for pos_idx, (symbol, pos) in enumerate(atoms):
         orig = atom_keys[pos_idx] if atom_keys else pos_idx
@@ -272,7 +286,8 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
         scale = _jitter_scale(jitter_rng, cfg.atom_jitter) if jitter_rng \
             else None
         pos_t, nrm_t = _sphere_transforms(pos, radius, scale)
-        group_for(rgb).add(sphere[0], sphere[1], sphere[2], pos_t, nrm_t)
+        group_for(rgb).add(sphere[0], sphere[1], sphere[2], pos_t, nrm_t,
+                           displace=atom_displace)
 
     hidden_bonds = hidden_bond_keys(cfg)
     for bond in (() if cfg.hide_all_bonds else bonds):
@@ -293,19 +308,11 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
             if length < 1e-6:
                 continue
             group_for(rgb).add(
-                cylinder[0], cylinder[1], cylinder[2], pos_t, nrm_t)
+                cylinder[0], cylinder[1], cylinder[2], pos_t, nrm_t,
+                displace=bond_displace)
 
-    # Bake noise displacement into atoms/bonds (the Blender script uses a
-    # Displace modifier; ring plates get none there either, so they are
-    # added after this pass and stay crisp).
-    if cfg.deformation_noise > 0.0:
-        for group, _rgba in groups.values():
-            group.positions = [
-                tuple(p[k] + n[k] * noise_displacement(
-                    p, cfg.deformation_noise,
-                    cfg.deformation_noise_scale) * 0.5 for k in range(3))
-                for p, n in zip(group.positions, group.normals)]
-
+    # Ring plates/outlines stay crisp: the Blender script puts no
+    # deformation modifiers on them either.
     if rings and (ring_panels_enabled(cfg) or ring_outlines_enabled(cfg)):
         for rec in _ring_records(atoms, rings, cfg, ring_keys):
             if not rec["visible"]:
