@@ -333,7 +333,8 @@ def _bond_records(bonds, cfg: StyleConfig, hide_bond_rings=None,
     for i, j, order in bonds:
         orig_i = atom_keys[i] if atom_keys else i
         orig_j = atom_keys[j] if atom_keys else j
-        visible = (i not in endpoints and j not in endpoints
+        visible = (not cfg.hide_all_bonds
+                   and i not in endpoints and j not in endpoints
                    and bond_key(orig_i, orig_j) not in hidden_keys
                    and not any(i in members and j in members
                                for members in hide_rings))

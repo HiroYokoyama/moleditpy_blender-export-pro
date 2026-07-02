@@ -250,6 +250,8 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
 
     bond_radius = max(cfg.bond_radius, 0.01)
     hidden_bonds = hidden_bond_keys(cfg)
+    if cfg.hide_all_bonds:
+        bonds = []
     for idx, (i, j, order) in enumerate(bonds):
         if i in hidden_endpoints or j in hidden_endpoints:
             continue

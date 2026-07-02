@@ -206,6 +206,16 @@ def test_glb_opaque_ring_plate_has_no_blend_mode():
     assert not any("alphaMode" in m for m in gltf["materials"])
 
 
+def test_hide_all_bonds_in_glb_and_usda():
+    atoms, bonds = me.extract_geometry(make_ethanol_like())
+    cfg = StyleConfig(hide_all_bonds=True)
+    usda = me.build_usda(atoms, bonds, cfg)
+    assert "def Cylinder" not in usda
+    assert usda.count("def Sphere") == len(atoms)
+    gltf = _parse_glb(me.build_glb(atoms, bonds, cfg))
+    assert gltf["meshes"]   # atoms still exported
+
+
 def test_hidden_bonds_skipped_in_glb_and_usda():
     atoms, bonds = me.extract_geometry(make_ethanol_like())
     cfg = StyleConfig(bond_hidden={"1-2": True})

@@ -465,6 +465,12 @@ class BlenderExportDialog(QDialog):
             "Cylinder cross-section vertices. 6 = low-poly, 24+ = smooth.")
         form.addRow("Segments:", self.bond_segments)
 
+        self.hide_all_bonds = QCheckBox("Hide all bonds (atoms only)")
+        self.hide_all_bonds.setToolTip(
+            "Draw no bond cylinders at all — a space-filling / atoms-only "
+            "look. Atoms, ring plates and labels are unaffected.")
+        form.addRow(self.hide_all_bonds)
+
         self.show_multiple_bonds = QCheckBox("Render double/triple bonds")
         self.show_multiple_bonds.setToolTip(
             "Draw 2 or 3 parallel cylinders for double/triple bonds. "
@@ -1055,6 +1061,7 @@ class BlenderExportDialog(QDialog):
         ("bond_style", "combo"),
         ("bond_radius", "float"),
         ("bond_segments", "int"),
+        ("hide_all_bonds", "bool"),
         ("show_multiple_bonds", "bool"),
         ("multi_bond_offset", "float"),
         ("multi_bond_scale", "float"),

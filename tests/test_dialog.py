@@ -296,6 +296,16 @@ def test_preview_hidden_bond_not_drawn(monkeypatch):
     assert atoms == 7
 
 
+def test_preview_hide_all_bonds(monkeypatch):
+    from blender_export_pro.style_config import StyleConfig
+
+    _fake_pv, plotter = _draw_preview(
+        monkeypatch, StyleConfig(hide_all_bonds=True))
+    names = _added_mesh_names(plotter)
+    assert not any(n and n.startswith("bep_bond_") for n in names)
+    assert sum(1 for n in names if n and n.startswith("bep_atom_")) == 7
+
+
 def test_apply_lighting_fill_and_rim_strengths(monkeypatch):
     """Fill/rim lights must follow the configured fractions of the key."""
     import types

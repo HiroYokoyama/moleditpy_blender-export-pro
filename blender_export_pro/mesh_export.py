@@ -275,7 +275,7 @@ def build_color_groups(atoms, bonds, cfg: StyleConfig, atom_keys=None,
         group_for(rgb).add(sphere[0], sphere[1], sphere[2], pos_t, nrm_t)
 
     hidden_bonds = hidden_bond_keys(cfg)
-    for i, j, _order in bonds:
+    for i, j, _order in (() if cfg.hide_all_bonds else bonds):
         if i in endpoints or j in endpoints:
             continue
         orig_i = atom_keys[i] if atom_keys else i
@@ -519,7 +519,8 @@ def build_usda(atoms, bonds, cfg: StyleConfig, atom_keys=None,
         ]
 
     hidden_bonds = hidden_bond_keys(cfg)
-    for bidx, (i, j, _order) in enumerate(bonds):
+    for bidx, (i, j, _order) in enumerate(
+            () if cfg.hide_all_bonds else bonds):
         if i in endpoints or j in endpoints:
             continue
         orig_i = atom_keys[i] if atom_keys else i

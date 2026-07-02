@@ -372,6 +372,16 @@ def test_bond_materials_are_named_per_color():
     assert 'Mat_%s_bond_%s' in script
 
 
+def test_hide_all_bonds_marks_every_record_invisible():
+    atoms, bonds = bc.extract_geometry(make_ethanol_like())
+    recs = bc._bond_records(bonds, StyleConfig(hide_all_bonds=True))
+    assert recs and all(r["visible"] is False for r in recs)
+    script = bc.generate_script_from_mol(
+        make_ethanol_like(), StyleConfig(hide_all_bonds=True))
+    compile(script, "<generated>", "exec")
+    assert "'visible': True" not in script.split("BONDS =")[1].split("RINGS")[0]
+
+
 def test_bond_key_is_sorted():
     assert bc.bond_key(7, 3) == "3-7"
     assert bc.bond_key(3, 7) == "3-7"

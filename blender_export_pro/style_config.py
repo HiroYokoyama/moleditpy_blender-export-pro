@@ -86,6 +86,7 @@ class StyleConfig:
     # Specific bonds to hide, keyed by sorted original atom indices
     # ("3-7": True). Atoms stay; only the bond cylinder is omitted.
     bond_hidden: dict = field(default_factory=dict)
+    hide_all_bonds: bool = False     # draw no bonds at all (atoms-only look)
 
     # Rings (benzene etc. drawn as filled polygon panels/plates and/or a
     # perimeter line — the classic hexagon outline)
