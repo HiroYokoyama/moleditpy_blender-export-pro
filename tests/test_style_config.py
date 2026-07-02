@@ -140,6 +140,34 @@ def test_load_settings_bad_or_non_dict_json(tmp_path, monkeypatch):
     assert sc.load_settings() == {}
 
 
+def test_every_field_survives_project_save_load():
+    """The .pmeprj handlers are to_dict -> JSON -> update_from_dict; every
+    single StyleConfig field (current and future) must round-trip."""
+    import json
+    from dataclasses import fields
+
+    src = StyleConfig()
+    for f in fields(StyleConfig):
+        cur = getattr(src, f.name)
+        if isinstance(cur, bool):
+            setattr(src, f.name, not cur)
+        elif isinstance(cur, int):
+            setattr(src, f.name, cur + 3)
+        elif isinstance(cur, float):
+            setattr(src, f.name, cur + 0.125)
+        elif isinstance(cur, dict):
+            setattr(src, f.name, {"9-9": True} if "hidden" in f.name
+                    else {"key": {"visible": False}})
+        else:
+            setattr(src, f.name, (cur + "_x") if cur else "changed")
+
+    restored = StyleConfig()
+    restored.update_from_dict(json.loads(json.dumps(src.to_dict())))
+    mismatched = [f.name for f in fields(StyleConfig)
+                  if getattr(restored, f.name) != getattr(src, f.name)]
+    assert not mismatched, mismatched
+
+
 def test_bond_hidden_round_trip():
     cfg = StyleConfig(bond_hidden={"3-7": True, "0-1": True})
     restored = StyleConfig()
