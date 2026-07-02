@@ -169,7 +169,7 @@ def noise_displacement(point, strength, scale) -> float:
     return (coarse + 0.7 * fine) / 1.7 * float(strength)
 
 
-GRADIENT_BOND_PIECES = 4
+GRADIENT_BOND_PIECES = 12
 
 
 def bond_piecewise(cfg: StyleConfig, start, end, color_a, color_b) -> list:
@@ -179,7 +179,8 @@ def bond_piecewise(cfg: StyleConfig, start, end, color_a, color_b) -> list:
     materials: "split" = half/half at the midpoint, "gradient" =
     GRADIENT_BOND_PIECES interpolated slices, "single"/"atoms" = one
     segment. (The generated Blender script uses a true node-based
-    gradient instead of slices.)
+    gradient, and the preview interpolates per vertex; the slices are
+    the glTF/USD path and the preview fallback.)
     """
     def lerp_point(t):
         return tuple(start[k] + (end[k] - start[k]) * t for k in range(3))

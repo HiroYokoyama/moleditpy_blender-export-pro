@@ -179,6 +179,42 @@ def _displace(mesh, cfg: StyleConfig, _rng=None) -> None:
         logging.debug("BlenderExportPro: preview displace failed", exc_info=True)
 
 
+def _add_smooth_gradient_bond(plotter, cfg, mat, seg_start, direction,
+                              length, radius, color_a, color_b, name) -> bool:
+    """One cylinder with per-vertex colors: a genuinely smooth gradient.
+
+    Returns False on any failure so the caller can fall back to the
+    piecewise-slice approximation.
+    """
+    try:
+        seg_end = seg_start + direction * length
+        cyl = pv.Cylinder(
+            center=(seg_start + seg_end) / 2.0,
+            direction=direction,
+            radius=radius,
+            height=length,
+            resolution=max(6, cfg.bond_segments),
+        )
+        pts = np.asarray(cyl.points, dtype=float)
+        t = np.clip((pts - seg_start) @ direction / length, 0.0, 1.0)
+        colors = (np.outer(1.0 - t, np.asarray(color_a, dtype=float))
+                  + np.outer(t, np.asarray(color_b, dtype=float)))
+        _displace(cyl, cfg)
+        plotter.add_mesh(
+            cyl,
+            scalars=colors,
+            rgb=True,
+            name=name,
+            smooth_shading=cfg.shade_smooth,
+            **mat,
+        )
+        return True
+    except Exception:
+        logging.debug("BlenderExportPro: smooth gradient bond failed, "
+                      "falling back to slices", exc_info=True)
+        return False
+
+
 def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
     """3D style callback: draw the styled molecule into the host plotter."""
     if pv is None or np is None:
@@ -322,6 +358,12 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
                         smooth_shading=cfg.shade_smooth,
                         **mat,
                     )
+                continue
+            if (cfg.bond_color_mode == "gradient"
+                    and tuple(color_a) != tuple(color_b)
+                    and _add_smooth_gradient_bond(
+                        plotter, cfg, mat, start + shift, direction, length,
+                        radius, color_a, color_b, f"bep_bond_{idx}_{k}_0")):
                 continue
             for p, (seg_start, seg_end, seg_color) in enumerate(pieces):
                 seg_start = np.asarray(seg_start) + shift

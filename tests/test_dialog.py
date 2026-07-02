@@ -315,6 +315,52 @@ def test_preview_aromatic_bond_styles(monkeypatch):
     assert len(solids) == 6 + 1          # solid main lines + the C-Cl bond
 
 
+def test_preview_smooth_gradient_bond(monkeypatch):
+    """Gradient bonds use one cylinder with per-vertex colors (smooth),
+    not colored slices."""
+    from unittest.mock import MagicMock
+    import pytest
+
+    np_real = pytest.importorskip("numpy")
+    pv_real = pytest.importorskip("pyvista")
+    from blender_export_pro import preview_style
+    from blender_export_pro.style_config import StyleConfig
+
+    monkeypatch.setattr(preview_style, "pv", pv_real)
+    monkeypatch.setattr(preview_style, "np", np_real)
+    plotter = MagicMock()
+    ok = preview_style._add_smooth_gradient_bond(
+        plotter, StyleConfig(bond_color_mode="gradient"), {},
+        np_real.zeros(3), np_real.array([1.0, 0.0, 0.0]), 1.5, 0.12,
+        (1.0, 0.0, 0.0), (0.0, 0.0, 1.0), "bep_bond_0_0_0")
+    assert ok is True
+    kwargs = plotter.add_mesh.call_args.kwargs
+    assert kwargs["rgb"] is True
+    colors = kwargs["scalars"]
+    # end-ring vertices carry the two pure colors; the GPU interpolates
+    assert {tuple(c) for c in np_real.round(colors, 3)} >= {
+        (1.0, 0.0, 0.0), (0.0, 0.0, 1.0)}
+
+
+def test_preview_smooth_gradient_falls_back_quietly(monkeypatch):
+    from unittest.mock import MagicMock
+    import pytest
+
+    np_real = pytest.importorskip("numpy")
+    from blender_export_pro import preview_style
+    from blender_export_pro.style_config import StyleConfig
+
+    broken_pv = MagicMock()
+    broken_pv.Cylinder.side_effect = RuntimeError("boom")
+    monkeypatch.setattr(preview_style, "pv", broken_pv)
+    monkeypatch.setattr(preview_style, "np", np_real)
+    ok = preview_style._add_smooth_gradient_bond(
+        MagicMock(), StyleConfig(), {}, np_real.zeros(3),
+        np_real.array([1.0, 0.0, 0.0]), 1.5, 0.12,
+        (1.0, 0.0, 0.0), (0.0, 0.0, 1.0), "n")
+    assert ok is False
+
+
 def test_preview_hide_all_bonds(monkeypatch):
     from blender_export_pro.style_config import StyleConfig
 
