@@ -195,6 +195,12 @@ class BlenderExportDialog(QDialog):
             0.05, 3.0, 0.05, "Radius in Angstrom used when radius mode is 'uniform'.")
         form.addRow("Uniform radius (Å):", self.uniform_radius)
 
+        self.hide_hydrogens = QCheckBox("Omit hydrogens")
+        self.hide_hydrogens.setToolTip(
+            "Hide all hydrogen atoms and their bonds — the common "
+            "'heavy-atoms only' view.")
+        form.addRow(self.hide_hydrogens)
+
         self.hydrogen_scale = self._dspin(
             0.0, 2.0, 0.05,
             "Extra size factor for hydrogen atoms only. 0.5 = half-size H "
@@ -246,13 +252,24 @@ class BlenderExportDialog(QDialog):
         gform.addRow("Color:", row)
 
         row = QHBoxLayout()
+        hide_btn = QPushButton("Hide Selected Atoms")
+        hide_btn.setToolTip("Hide the selected atoms and their bonds entirely.")
+        hide_btn.clicked.connect(self._hide_selected_atoms)
+        row.addWidget(hide_btn)
+        show_btn = QPushButton("Show Selected Atoms")
+        show_btn.setToolTip("Un-hide the selected atoms.")
+        show_btn.clicked.connect(self._show_selected_atoms)
+        row.addWidget(show_btn)
+        gform.addRow("Visibility:", row)
+
+        row = QHBoxLayout()
         reset_sel_btn = QPushButton("Reset Selected")
         reset_sel_btn.setToolTip(
-            "Remove size and color overrides from the selected atoms.")
+            "Remove size, color and hide overrides from the selected atoms.")
         reset_sel_btn.clicked.connect(self._reset_selected_atom_sizes)
         row.addWidget(reset_sel_btn)
         reset_all_btn = QPushButton("Reset All")
-        reset_all_btn.setToolTip("Remove all per-atom size and color overrides.")
+        reset_all_btn.setToolTip("Remove all per-atom overrides.")
         reset_all_btn.clicked.connect(self._reset_all_atom_sizes)
         row.addWidget(reset_all_btn)
         gform.addRow(row)
@@ -727,6 +744,7 @@ class BlenderExportDialog(QDialog):
         ("atom_radius_mode", "combo"),
         ("atom_radius_scale", "float"),
         ("uniform_radius", "float"),
+        ("hide_hydrogens", "bool"),
         ("hydrogen_scale", "float"),
         ("atom_jitter", "float"),
         ("bond_style", "combo"),
@@ -912,12 +930,41 @@ class BlenderExportDialog(QDialog):
     def _update_atom_override_label(self):
         sizes = len(self._cfg.atom_overrides or {})
         colors = len(self._cfg.atom_color_overrides or {})
-        if not sizes and not colors:
-            self.atom_override_label.setText("No per-atom overrides.")
-        else:
-            self.atom_override_label.setText(
-                f"Custom sizes: {sizes} atom(s) · custom colors: "
-                f"{colors} atom(s).")
+        hidden = sorted((self._cfg.atom_hidden or {}), key=lambda s: int(s)
+                        if s.isdigit() else 0)
+        parts = []
+        if sizes:
+            parts.append(f"custom sizes: {sizes}")
+        if colors:
+            parts.append(f"custom colors: {colors}")
+        if hidden:
+            shown = ", ".join(hidden[:12]) + ("…" if len(hidden) > 12 else "")
+            parts.append(f"hidden atoms [{shown}]")
+        self.atom_override_label.setText(
+            " · ".join(parts) if parts else "No per-atom overrides.")
+
+    def _hide_selected_atoms(self):
+        selected = self._selected_atoms_or_warn()
+        if selected is None:
+            return
+        if not isinstance(self._cfg.atom_hidden, dict):
+            self._cfg.atom_hidden = {}
+        for idx in selected:
+            self._cfg.atom_hidden[str(int(idx))] = True
+        self._update_atom_override_label()
+        self._refresh_preview_if_active()
+        self._context.show_status_message(
+            f"Hid {len(selected)} atom(s).", 3000)
+
+    def _show_selected_atoms(self):
+        selected = self._selected_atoms_or_warn()
+        if selected is None:
+            return
+        if isinstance(self._cfg.atom_hidden, dict):
+            for idx in selected:
+                self._cfg.atom_hidden.pop(str(int(idx)), None)
+        self._update_atom_override_label()
+        self._refresh_preview_if_active()
 
     def _apply_atom_override(self, override: dict):
         selected = self._selected_atoms_or_warn()
@@ -962,7 +1009,8 @@ class BlenderExportDialog(QDialog):
         if selected is None:
             return
         for overrides in (self._cfg.atom_overrides,
-                          self._cfg.atom_color_overrides):
+                          self._cfg.atom_color_overrides,
+                          self._cfg.atom_hidden):
             if isinstance(overrides, dict):
                 for idx in selected:
                     overrides.pop(str(int(idx)), None)
@@ -972,6 +1020,7 @@ class BlenderExportDialog(QDialog):
     def _reset_all_atom_sizes(self):
         self._cfg.atom_overrides = {}
         self._cfg.atom_color_overrides = {}
+        self._cfg.atom_hidden = {}
         self._update_atom_override_label()
         self._refresh_preview_if_active()
         self._context.show_status_message("All per-atom overrides reset.", 3000)
