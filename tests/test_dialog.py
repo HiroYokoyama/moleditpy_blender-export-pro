@@ -194,3 +194,104 @@ def test_preview_draw_noop_without_plotter():
     mw = MagicMock()
     mw.view_3d_manager.plotter = None
     preview_style.draw_preview_style(mw, MagicMock(), StyleConfig())
+
+
+def _draw_preview(monkeypatch, cfg, mol=None):
+    """Run draw_preview_style with real numpy and a fake pyvista.
+
+    Returns (fake_pv, plotter) so tests can inspect the geometry calls.
+    """
+    from unittest.mock import MagicMock
+    import pytest
+
+    np_real = pytest.importorskip("numpy")
+    from conftest import make_benzene_like
+    from blender_export_pro import preview_style
+
+    fake_pv = MagicMock()
+    monkeypatch.setattr(preview_style, "pv", fake_pv)
+    monkeypatch.setattr(preview_style, "np", np_real)
+    preview_style.set_highlighted_ring(None)
+
+    plotter = MagicMock()
+    mw = MagicMock()
+    mw.view_3d_manager.plotter = plotter
+    preview_style.draw_preview_style(mw, mol or make_benzene_like(), cfg)
+    return fake_pv, plotter
+
+
+def _added_mesh_names(plotter):
+    return [c.kwargs.get("name") for c in plotter.add_mesh.call_args_list]
+
+
+def test_preview_draws_atoms_and_bonds(monkeypatch):
+    """Benzene-like: 7 atom spheres, 6 aromatic double bonds + 1 single."""
+    from blender_export_pro.style_config import StyleConfig
+
+    _fake_pv, plotter = _draw_preview(monkeypatch, StyleConfig())
+    names = _added_mesh_names(plotter)
+    assert sum(1 for n in names if n and n.startswith("bep_atom_")) == 7
+    # aromatic bonds (order 2) draw two cylinders each, C-Cl draws one
+    assert sum(1 for n in names if n and n.startswith("bep_bond_")) == 6 * 2 + 1
+    plotter.clear.assert_called_once()
+    plotter.render.assert_called_once()
+
+
+def test_preview_multi_bond_scale_applied(monkeypatch):
+    """The multi-bond cylinders must use bond_radius * multi_bond_scale."""
+    from blender_export_pro.style_config import StyleConfig
+
+    fake_pv, _plotter = _draw_preview(
+        monkeypatch, StyleConfig(bond_radius=0.2, multi_bond_scale=1.0))
+    radii = {round(c.kwargs["radius"], 6)
+             for c in fake_pv.Cylinder.call_args_list}
+    assert radii == {0.2}   # scale 1.0: doubles as thick as singles
+
+    fake_pv, _plotter = _draw_preview(
+        monkeypatch, StyleConfig(bond_radius=0.2, multi_bond_scale=0.5))
+    radii = {round(c.kwargs["radius"], 6)
+             for c in fake_pv.Cylinder.call_args_list}
+    assert radii == {0.2, 0.1}
+
+
+def test_preview_draws_ring_panel_and_outline(monkeypatch):
+    from blender_export_pro.style_config import StyleConfig
+
+    _fake_pv, plotter = _draw_preview(
+        monkeypatch, StyleConfig(ring_style="panel+outline"))
+    names = _added_mesh_names(plotter)
+    assert "bep_ring_0" in names
+    assert "bep_ring_line_0" in names
+
+
+def test_preview_hidden_ring_not_drawn(monkeypatch):
+    from blender_export_pro.style_config import StyleConfig
+
+    _fake_pv, plotter = _draw_preview(
+        monkeypatch,
+        StyleConfig(ring_style="panel+outline",
+                    ring_overrides={"0-1-2-3-4-5": {"visible": False}}))
+    names = _added_mesh_names(plotter)
+    assert "bep_ring_0" not in names
+    assert "bep_ring_line_0" not in names
+
+
+def test_apply_lighting_fill_and_rim_strengths(monkeypatch):
+    """Fill/rim lights must follow the configured fractions of the key."""
+    import types
+    from unittest.mock import MagicMock
+    import pytest
+
+    np_real = pytest.importorskip("numpy")
+    from blender_export_pro import preview_style
+    from blender_export_pro.style_config import StyleConfig
+
+    fake_pv = types.SimpleNamespace(Light=MagicMock())
+    monkeypatch.setattr(preview_style, "pv", fake_pv)
+    monkeypatch.setattr(preview_style, "np", np_real)
+
+    plotter = MagicMock()
+    cfg = StyleConfig(fill_light_strength=0.0, rim_light_strength=2.0)
+    preview_style._apply_lighting(plotter, cfg, np_real.zeros(3), 5.0)
+    intensities = [c.kwargs["intensity"] for c in fake_pv.Light.call_args_list]
+    assert intensities == [1.0, 0.0, 2.0]

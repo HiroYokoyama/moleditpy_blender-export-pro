@@ -118,6 +118,42 @@ def test_usda_ring_panel_and_outline():
     assert usda.count("RingLine_000_") == 6
 
 
+def test_glb_hidden_ring_adds_nothing():
+    cfg_off = StyleConfig(ring_style="none")
+    cfg_hidden = StyleConfig(
+        ring_style="panel+outline",
+        ring_overrides={"0-1-2-3-4-5": {"visible": False}})
+    atoms, bonds, rings, ring_keys = _benzene_with_rings(cfg_hidden)
+    base = _parse_glb(me.build_glb(atoms, bonds, cfg_off))
+    hidden = _parse_glb(me.build_glb(atoms, bonds, cfg_hidden, rings=rings,
+                                     ring_keys=ring_keys))
+    assert len(hidden["materials"]) == len(base["materials"])
+    assert len(hidden["meshes"]) == len(base["meshes"])
+
+
+def test_usda_hidden_ring_adds_nothing():
+    cfg = StyleConfig(ring_style="panel+outline",
+                      ring_overrides={"0-1-2-3-4-5": {"visible": False}})
+    atoms, bonds, rings, ring_keys = _benzene_with_rings(cfg)
+    usda = me.build_usda(atoms, bonds, cfg, rings=rings, ring_keys=ring_keys)
+    assert "RingPanel" not in usda
+    assert "RingLine" not in usda
+
+
+def test_glb_opaque_ring_plate_has_no_blend_mode():
+    cfg = StyleConfig(ring_style="panel", ring_color="#FF0000",
+                      ring_opacity=1.0)
+    atoms, bonds, rings, ring_keys = _benzene_with_rings(cfg)
+    gltf = _parse_glb(me.build_glb(atoms, bonds, cfg, rings=rings,
+                                   ring_keys=ring_keys))
+    assert not any("alphaMode" in m for m in gltf["materials"])
+
+
+def test_usda_cylinder_degenerate_segment_is_empty():
+    assert me._usda_cylinder("X", (0, 0, 0), (0, 0, 0), 0.1,
+                             (1.0, 0.0, 0.0)) == []
+
+
 def test_export_mesh_file_with_ring_style(tmp_path):
     cfg = StyleConfig(ring_style="panel+outline")
     for name in ("mol.glb", "mol.usda"):

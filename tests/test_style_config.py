@@ -114,6 +114,32 @@ def test_bond_scale_and_scene_scale_fields_round_trip():
     assert default.camera_distance_scale == 3.2
 
 
+def test_ring_style_options_and_new_ring_fields():
+    assert sc.RING_STYLES == ("none", "panel", "outline", "panel+outline")
+    default = StyleConfig()
+    assert default.ring_bevel is True
+    assert default.ring_outline_radius == 0.04
+
+    cfg = StyleConfig(ring_style="panel+outline", ring_bevel=False,
+                      ring_outline_radius=0.1)
+    restored = StyleConfig()
+    restored.update_from_dict(cfg.to_dict())
+    assert restored.ring_style == "panel+outline"
+    assert restored.ring_bevel is False
+    assert restored.ring_outline_radius == 0.1
+
+
+def test_load_settings_bad_or_non_dict_json(tmp_path, monkeypatch):
+    settings = tmp_path / "settings.json"
+    monkeypatch.setattr(sc, "settings_path", lambda: str(settings))
+
+    settings.write_text("{ not json", encoding="utf-8")
+    assert sc.load_settings() == {}
+
+    settings.write_text('["a", "list"]', encoding="utf-8")
+    assert sc.load_settings() == {}
+
+
 def test_ring_hide_fields_round_trip():
     cfg = StyleConfig(ring_hide_atoms=True, ring_hide_bonds=True,
                       ring_overrides={"0-1-2": {"hide_atoms": True}})
