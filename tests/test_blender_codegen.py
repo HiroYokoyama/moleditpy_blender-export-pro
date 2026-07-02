@@ -78,7 +78,7 @@ def test_script_compiles_for_all_material_presets():
 
 def test_script_contains_geometry_and_config():
     script = _generate(collection_name="Benzene", turntable_frames=120)
-    assert '"symbol": "C"' in script
+    assert "'symbol': 'C'" in script
     assert 'COLLECTION_NAME = \'Benzene\'' in script
     assert "TURNTABLE_FRAMES = 120" in script
     assert "import bpy" in script
@@ -102,36 +102,36 @@ def test_script_never_imports_rdkit_or_pyvista():
 
 def test_uniform_radius_mode():
     script = _generate(atom_radius_mode="uniform", uniform_radius=0.5)
-    assert '"radius": 0.5' in script
+    assert "'radius': 0.5" in script
 
 
 def test_single_color_mode():
     script = _generate(color_mode="single", single_color="#FF0000")
-    assert '"color": [\n   1.0,\n   0.0,\n   0.0\n  ]' in script.replace("\r\n", "\n")
+    assert "'color': [1.0, 0.0, 0.0]" in script
 
 
 def test_multiple_bonds_flag():
     on = _generate(show_multiple_bonds=True)
     off = _generate(show_multiple_bonds=False)
-    assert '"order": 2' in on
-    assert '"order": 2' not in off
+    assert "'order': 2" in on
+    assert "'order': 2" not in off
 
 
 def test_roughness_override():
     script = _generate(material_preset="plastic", roughness_override=0.77)
-    assert '"roughness": 0.77' in script
+    assert "'roughness': 0.77" in script
 
 
 def test_unknown_material_preset_falls_back():
     script = _generate(material_preset="does_not_exist")
     compile(script, "<generated>", "exec")
-    assert '"roughness": 0.3' in script  # plastic defaults
+    assert "'roughness': 0.3" in script  # plastic defaults
 
 
 def test_generate_script_from_mol():
     script = bc.generate_script_from_mol(make_ethanol_like(), StyleConfig())
     compile(script, "<generated>", "exec")
-    assert '"symbol": "O"' in script
+    assert "'symbol': 'O'" in script
 
 
 # ---------------------------------------------------------------- rings
@@ -185,8 +185,7 @@ def test_ring_panel_script_compiles_and_contains_data():
     script = bc.generate_script_from_mol(mol, cfg)
     compile(script, "<generated>", "exec")
     assert "create_ring_panel" in script
-    assert '"indices": [\n   0,\n   1,\n   2,\n   3,\n   4,\n   5\n  ]' in (
-        script.replace("\r\n", "\n"))
+    assert "'indices': [0, 1, 2, 3, 4, 5]" in script
     assert "RING_STYLE = 'panel'" in script
 
 
@@ -312,7 +311,7 @@ def test_custom_lights_in_script():
     script = _generate(use_custom_lights=True,
                        custom_lights={"Key": {"type": "AREA", "energy": 900}})
     assert "USE_CUSTOM_LIGHTS = True" in script
-    assert '"name": "Key"' in script
+    assert "'name': 'Key'" in script
     compile(script, "<generated>", "exec")
 
 
@@ -375,7 +374,7 @@ def test_atom_override_survives_selection_remap():
     cfg = StyleConfig(atom_overrides={"2": {"radius": 2.5}})
     # select only atoms 1 (C) and 2 (O); O becomes export index 1
     script = bc.generate_script_from_mol(mol, cfg, selected_indices=[1, 2])
-    assert '"radius": 2.5' in script
+    assert "'radius': 2.5" in script
 
 
 def test_atom_records_use_export_position_without_keys():
@@ -433,7 +432,7 @@ def test_hidden_atoms_and_bonds_marked_invisible():
                       ring_hide_bonds=True)
     script = bc.generate_script_from_mol(make_benzene_like(), cfg)
     compile(script, "<generated>", "exec")
-    assert '"visible": false' in script
+    assert "'visible': False" in script
 
 
 def test_resolve_ring_style_override():
@@ -471,8 +470,7 @@ def test_ring_override_key_survives_selection_remap():
     )
     script = bc.generate_script_from_mol(
         mol, cfg, selected_indices=[5, 4, 3, 2, 1, 0])
-    assert '"color": [\n   0.0,\n   1.0,\n   0.0\n  ]' in (
-        script.replace("\r\n", "\n"))
+    assert "'color': [0.0, 1.0, 0.0]" in script
 
 
 def test_hidden_ring_script_still_compiles():
@@ -483,7 +481,7 @@ def test_hidden_ring_script_still_compiles():
     )
     script = bc.generate_script_from_mol(mol, cfg)
     compile(script, "<generated>", "exec")
-    assert '"visible": false' in script
+    assert "'visible': False" in script
 
 
 def test_generate_script_from_mol_empty_selection_raises():
