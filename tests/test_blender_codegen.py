@@ -73,6 +73,34 @@ def test_resolve_aromatic_display():
                     aromatic_bond_style="dashed"), 2, True) == (1, False)
 
 
+def test_bond_inner_direction_points_to_ring_center():
+    # unit square ring in the XY plane
+    atoms = [("C", (0.0, 0.0, 0.0)), ("C", (1.0, 0.0, 0.0)),
+             ("C", (1.0, 1.0, 0.0)), ("C", (0.0, 1.0, 0.0))]
+    rings = [(0, 1, 2, 3)]
+    # bond 0-1 lies on y=0; the ring center (0.5, 0.5) is toward +y
+    inner = bc.bond_inner_direction(atoms, rings, 0, 1)
+    assert inner is not None
+    assert abs(inner[0]) < 1e-9 and abs(inner[2]) < 1e-9
+    assert inner[1] == 1.0
+    # a bond outside any ring has no inner side
+    assert bc.bond_inner_direction(atoms, [], 0, 1) is None
+
+
+def test_dashed_records_carry_inner_direction():
+    mol = make_benzene_like()
+    atoms, bonds = bc.extract_geometry(mol)
+    rings = bc.extract_rings(mol)
+    cfg = StyleConfig(aromatic_bond_style="dashed")
+    recs = bc._bond_records(bonds, cfg, atoms=atoms, aromatic_rings=rings)
+    dashed = [r for r in recs if r["dashed"]]
+    assert len(dashed) == 6
+    for r in dashed:
+        assert r["inner"] is not None
+        # unit vector
+        assert abs(sum(c * c for c in r["inner"]) - 1.0) < 1e-3
+
+
 def test_aromatic_bond_style_scripts():
     mol = make_benzene_like()
     single = bc.generate_script_from_mol(
@@ -86,6 +114,7 @@ def test_aromatic_bond_style_scripts():
     compile(dashed, "<generated>", "exec")
     assert "_dash_bounds" in dashed
     assert "'dashed': True" in dashed
+    assert "'inner': [" in dashed   # dashes are placed inside the ring
 
 
 # -------------------------------------------------------- generate_script

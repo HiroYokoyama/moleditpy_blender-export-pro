@@ -260,6 +260,31 @@ def resolve_aromatic_display(cfg: StyleConfig, order, aromatic):
     return order, False
 
 
+def bond_inner_direction(atoms, rings, i, j):
+    """Unit vector from the bond midpoint toward the center of the first
+    ring containing both atoms, perpendicular to the bond axis — where the
+    dashed aromatic line belongs. None if the bond is in none of *rings*.
+    """
+    for ring in rings or []:
+        if i not in ring or j not in ring:
+            continue
+        pts = [atoms[k][1] for k in ring]
+        n = len(pts)
+        center = [sum(p[m] for p in pts) / n for m in range(3)]
+        a, b = atoms[i][1], atoms[j][1]
+        mid = [(a[m] + b[m]) / 2.0 for m in range(3)]
+        axis = [b[m] - a[m] for m in range(3)]
+        length = math.sqrt(sum(c * c for c in axis)) or 1.0
+        axis = [c / length for c in axis]
+        v = [center[m] - mid[m] for m in range(3)]
+        dot = sum(v[m] * axis[m] for m in range(3))
+        v = [v[m] - dot * axis[m] for m in range(3)]
+        vlen = math.sqrt(sum(c * c for c in v))
+        if vlen > 1e-9:
+            return tuple(c / vlen for c in v)
+    return None
+
+
 DASH_COUNT = 5
 DASH_DUTY = 0.6
 
@@ -356,13 +381,17 @@ def _atom_records(atoms, cfg: StyleConfig, atom_keys=None, hidden_atoms=None):
 
 
 def _bond_records(bonds, cfg: StyleConfig, hide_bond_rings=None,
-                  hidden_endpoints=None, atom_keys=None):
+                  hidden_endpoints=None, atom_keys=None, atoms=None,
+                  aromatic_rings=None):
     """Per-bond records with a visibility flag.
 
     A bond is hidden if either endpoint is a fully-omitted atom
     (*hidden_endpoints*, e.g. hydrogens), both endpoints lie in a ring
     whose internal bonds are hidden (*hide_bond_rings*), or the user hid
     that specific bond (cfg.bond_hidden, keyed by original indices).
+    Dashed aromatic bonds carry "inner": the unit direction toward their
+    ring's center (from *atoms* + *aromatic_rings*), so the dashed line
+    is drawn inside the ring.
     """
     hide_rings = hide_bond_rings or []
     endpoints = hidden_endpoints or set()
@@ -379,12 +408,16 @@ def _bond_records(bonds, cfg: StyleConfig, hide_bond_rings=None,
                    and not any(i in members and j in members
                                for members in hide_rings))
         order, dashed = resolve_aromatic_display(cfg, order, aromatic)
-        records.append({
+        record = {
             "a": i, "b": j,
             "order": order,
             "dashed": dashed,
             "visible": visible,
-        })
+        }
+        if dashed and atoms is not None:
+            inner = bond_inner_direction(atoms, aromatic_rings, i, j)
+            record["inner"] = [round(c, 6) for c in inner] if inner else None
+        records.append(record)
     return records
 
 
@@ -490,7 +523,8 @@ def _ring_records(atoms, rings, cfg: StyleConfig, ring_keys=None):
 
 
 def generate_script(atoms, bonds, cfg: StyleConfig, rings=None,
-                    ring_keys=None, atom_keys=None) -> str:
+                    ring_keys=None, atom_keys=None,
+                    aromatic_rings=None) -> str:
     """Build the full bpy script text.
 
     Args:
@@ -514,7 +548,10 @@ def generate_script(atoms, bonds, cfg: StyleConfig, rings=None,
     atom_data = pprint.pformat(
         _atom_records(atoms, cfg, atom_keys, hidden_atoms), indent=4)
     bond_data = pprint.pformat(
-        _bond_records(bonds, cfg, hide_bond_rings, endpoints, atom_keys),
+        _bond_records(bonds, cfg, hide_bond_rings, endpoints, atom_keys,
+                      atoms=atoms,
+                      aromatic_rings=(aromatic_rings if aromatic_rings
+                                      is not None else rings)),
         indent=4)
     ring_data = pprint.pformat(
         _ring_records(atoms, rings, cfg, ring_keys), indent=4)
@@ -877,35 +914,43 @@ def create_bond(coll, index, rec):
     radius = BOND_RADIUS if order <= 1 else BOND_RADIUS * MULTI_BOND_SCALE
     mid = (start + end) / 2.0
     axis = end - start
-    for k, off in enumerate(offsets):
-        shift = perp * off
-        name = "Bond_%03d_%d" % (index, k)
-        if rec.get("dashed") and k == 1:
-            # dashed second line: the classic aromatic-bond depiction
-            for di, (t0, t1) in enumerate(_dash_bounds()):
-                tm = (t0 + t1) / 2.0
-                if BOND_COLOR_MODE == "gradient":
-                    c = [color_a[m] + (color_b[m] - color_a[m]) * tm
-                         for m in range(3)]
-                elif BOND_COLOR_MODE == "split":
-                    c = color_a if tm < 0.5 else color_b
-                else:
-                    c = color_a
-                create_bond_segment(coll, "%s_d%d" % (name, di),
-                                    start + axis * t0 + shift,
-                                    start + axis * t1 + shift, radius, c)
-            continue
+
+    def emit_solid(name, shift, seg_radius):
         if BOND_COLOR_MODE == "split" and color_a != color_b:
             create_bond_segment(coll, name + "a", start + shift, mid + shift,
-                                radius, color_a)
+                                seg_radius, color_a)
             create_bond_segment(coll, name + "b", mid + shift, end + shift,
-                                radius, color_b)
+                                seg_radius, color_b)
         elif BOND_COLOR_MODE == "gradient" and color_a != color_b:
             create_bond_segment(coll, name, start + shift, end + shift,
-                                radius, color_a, gradient_to=color_b)
+                                seg_radius, color_a, gradient_to=color_b)
         else:
             create_bond_segment(coll, name, start + shift, end + shift,
-                                radius, color_a)
+                                seg_radius, color_a)
+
+    if rec.get("dashed"):
+        # classic aromatic depiction: solid full-width line on the bond
+        # axis, dashed thinner line shifted toward the ring's inside
+        emit_solid("Bond_%03d_0" % index, Vector((0.0, 0.0, 0.0)),
+                   BOND_RADIUS)
+        inner = rec.get("inner")
+        shift = (Vector(inner) if inner else perp) * MULTI_BOND_OFFSET
+        for di, (t0, t1) in enumerate(_dash_bounds()):
+            tm = (t0 + t1) / 2.0
+            if BOND_COLOR_MODE == "gradient":
+                c = [color_a[m] + (color_b[m] - color_a[m]) * tm
+                     for m in range(3)]
+            elif BOND_COLOR_MODE == "split":
+                c = color_a if tm < 0.5 else color_b
+            else:
+                c = color_a
+            create_bond_segment(coll, "Bond_%03d_1_d%d" % (index, di),
+                                start + axis * t0 + shift,
+                                start + axis * t1 + shift, radius, c)
+        return
+
+    for k, off in enumerate(offsets):
+        emit_solid("Bond_%03d_%d" % (index, k), perp * off, radius)
 
 
 def make_ring_material(name, rgb, alpha):
@@ -1291,4 +1336,8 @@ def generate_script_from_mol(mol, cfg: StyleConfig, selected_indices=None) -> st
         originals = extract_rings(
             mol, selected_indices, cfg.ring_aromatic_only, keep_original=True)
         ring_keys = [ring_key(r) for r in originals]
-    return generate_script(atoms, bonds, cfg, rings, ring_keys, atom_keys)
+    aromatic_rings = None
+    if cfg.aromatic_bond_style == "dashed":
+        aromatic_rings = extract_rings(mol, selected_indices, True)
+    return generate_script(atoms, bonds, cfg, rings, ring_keys, atom_keys,
+                           aromatic_rings)

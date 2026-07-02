@@ -9,6 +9,7 @@ import logging
 
 from .blender_codegen import (
     _custom_light_list,
+    bond_inner_direction,
     bond_key,
     bond_piecewise,
     dash_bounds,
@@ -292,6 +293,12 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
     hidden_bonds = hidden_bond_keys(cfg)
     if cfg.hide_all_bonds:
         bonds = []
+    aromatic_rings = None
+    if cfg.aromatic_bond_style == "dashed" and cfg.show_multiple_bonds:
+        try:
+            aromatic_rings = extract_rings(mol, None, True)
+        except Exception:
+            logging.exception("BlenderExportPro: aromatic ring lookup failed")
     for idx, bond in enumerate(bonds):
         i, j, order = bond[0], bond[1], bond[2]
         aromatic = bool(bond[3]) if len(bond) > 3 else False
@@ -319,7 +326,10 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
                 ref = np.array([0.0, 1.0, 0.0])
             perp = np.cross(direction, ref)
             perp /= np.linalg.norm(perp)
-            if order == 2:
+            if dashed:
+                # solid main line on the axis; dashed line shifted inside
+                offsets = [0.0, cfg.multi_bond_offset]
+            elif order == 2:
                 offsets = [-cfg.multi_bond_offset / 2.0, cfg.multi_bond_offset / 2.0]
             else:
                 offsets = [-cfg.multi_bond_offset, 0.0, cfg.multi_bond_offset]
@@ -330,9 +340,11 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
             radius = bond_radius
 
         for k, off in enumerate(offsets):
-            shift = perp * off
             if dashed and k == 1:
-                # dashed second line for aromatic bonds
+                # dashed second line, on the ring's inner side
+                inner = bond_inner_direction(atoms, aromatic_rings, i, j)
+                base = np.asarray(inner) if inner is not None else perp
+                shift = base * off
                 axis = end - start
                 for di, (t0, t1) in enumerate(dash_bounds()):
                     tm = (t0 + t1) / 2.0
@@ -362,11 +374,15 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
                         **mat,
                     )
                 continue
+            shift = perp * off
+            # the dashed style's solid main line keeps full bond width
+            seg_radius = bond_radius if dashed else radius
             if (cfg.bond_color_mode == "gradient"
                     and tuple(color_a) != tuple(color_b)
                     and _add_smooth_gradient_bond(
                         plotter, cfg, mat, start + shift, direction, length,
-                        radius, color_a, color_b, f"bep_bond_{idx}_{k}_0")):
+                        seg_radius, color_a, color_b,
+                        f"bep_bond_{idx}_{k}_0")):
                 continue
             for p, (seg_start, seg_end, seg_color) in enumerate(pieces):
                 seg_start = np.asarray(seg_start) + shift
@@ -377,7 +393,7 @@ def draw_preview_style(mw, mol, cfg: StyleConfig) -> None:
                 cyl = pv.Cylinder(
                     center=(seg_start + seg_end) / 2.0,
                     direction=direction,
-                    radius=radius,
+                    radius=seg_radius,
                     height=seg_len,
                     resolution=max(6, cfg.bond_segments),
                 )
