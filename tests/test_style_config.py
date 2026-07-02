@@ -53,6 +53,22 @@ def test_atom_overrides_round_trip():
     assert restored.atom_overrides == {"4": {"scale": 2.0}}
 
 
+def test_new_feature_fields_round_trip():
+    cfg = StyleConfig(
+        bond_color_mode="single", bond_color="#123456",
+        element_colors={"C": "#333333", "O": "#FF0000"},
+        render_on_run=True, render_output_path="C:/out/x.png",
+        image_format="JPEG")
+    restored = StyleConfig()
+    restored.update_from_dict(cfg.to_dict())
+    assert restored.bond_color_mode == "single"
+    assert restored.bond_color == "#123456"
+    assert restored.element_colors == {"C": "#333333", "O": "#FF0000"}
+    assert restored.render_on_run is True
+    assert restored.render_output_path == "C:/out/x.png"
+    assert restored.image_format == "JPEG"
+
+
 def test_label_and_color_override_round_trip():
     cfg = StyleConfig(label_mode="symbol_index", label_size=0.5,
                       atom_color_overrides={"1": "#123456"})

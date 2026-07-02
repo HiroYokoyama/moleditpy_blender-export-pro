@@ -47,6 +47,16 @@ the machine running MoleditPy.
   index) with size/color/offset controls, camera-billboarded in Blender and
   previewed in-app.
 - **Partial export** of the current atom selection.
+- **Render straight to an image**: optionally the script renders and saves a
+  PNG/JPEG/EXR/etc. when it runs — no need to press F12, and ideal for
+  headless batch rendering (`blender -b -P script.py`). Choose engine,
+  samples and resolution.
+- **No-Blender export**: write a standard **glTF (.glb)** or **USD (.usda)**
+  3D model that opens in Windows 3D Viewer, web viewers, PowerPoint, Blender,
+  Maya, etc. — for people who don't have Blender at all.
+- **Full color control**: recolor a whole element (all carbons, etc.),
+  override individual atoms, and choose whether bonds blend their atoms'
+  colors or use one fixed bond color.
 - **Consistent with the main app**: atom colors come from MoleditPy's own
   CPK color table (including your customizations) and radii from RDKit's
   van der Waals table — a scale of 0.3 reproduces the main app's

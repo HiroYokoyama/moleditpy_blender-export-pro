@@ -61,6 +61,9 @@ def test_dialog_has_quick_start_actions():
     # selected-atom sizing handlers
     assert {"_scale_selected_atoms", "_set_selected_atom_radius",
             "_reset_selected_atom_sizes", "_reset_all_atom_sizes"} <= methods
+    # element color + render output + mesh export handlers
+    assert {"_set_element_color", "_clear_element_colors",
+            "_browse_render_output", "_color_selected_atoms"} <= methods
 
 
 def test_preview_material_kwargs_never_collide_with_add_mesh_args():
