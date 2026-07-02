@@ -14,12 +14,14 @@ the machine running MoleditPy.
   the 3D style list so you can iterate on the look inside MoleditPy (PyVista).
 - **Tabbed config panel** (`Visuals > Blender Export Pro…`): Presets, Atoms,
   Bonds, Deformation, Material, Scene, Export.
-- **20 bundled presets**: Classic Ball-and-Stick, Space-Filling CPK, Cute
+- **32 bundled presets**: Classic Ball-and-Stick, Space-Filling CPK, Cute
   Cartoon, Toon Comic, Low-Poly Toy, Paper Origami, Glass Sculpture, Ice
   Crystal, Claymation, Gummy Candy, Jelly Wobble, Balloon Animal, Velvet
   Plush, Wax Crayon, Stone Sculpture, Ceramic Figurine, Chalkboard Sketch,
   Neon Glow, Gold Jewelry, Chrome Showroom, Copper Steampunk, Wire Model,
-  Holographic Display, Metaball Blob — plus save/load of custom JSON presets.
+  Holographic Display, Metaball Blob, Aromatic Plates, Stained Glass Rings,
+  Disco Party, Lava Lamp, Radioactive Slime, Cotton Candy, Soap Bubble,
+  Spaghetti Meatballs — plus save/load of custom JSON presets.
 - **Ring panels**: draw benzene and other rings as filled hexagonal
   panels/plates — flat or extruded, translucent stained-glass or solid,
   custom-colored or matched to the ring atoms (aromatic-only or all small

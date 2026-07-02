@@ -8,10 +8,12 @@ MoleditPy never imports bpy; the output is a plain Python text file.
 import logging
 
 from .style_config import STYLE_NAME, StyleConfig, load_config, save_config
-from .version import __version__
 
 PLUGIN_NAME = "Blender Export Pro"
-PLUGIN_VERSION = __version__
+# Must stay a literal string: the host's Plugin Manager AST-parses this file
+# and only picks up constant assignments (Name references read as "Unknown").
+PLUGIN_VERSION = "0.2.0"
+__version__ = PLUGIN_VERSION
 PLUGIN_AUTHOR = "HiroYokoyama"
 PLUGIN_DESCRIPTION = (
     "Stylized/deformed Blender export: cartoon, low-poly, glass, clay and "

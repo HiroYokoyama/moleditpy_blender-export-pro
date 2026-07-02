@@ -86,7 +86,7 @@ def test_script_contains_geometry_and_config():
 
 
 def test_script_contains_version_info():
-    from blender_export_pro.version import __version__
+    from blender_export_pro import __version__
 
     script = _generate()
     assert f"Blender Export Pro v{__version__}" in script

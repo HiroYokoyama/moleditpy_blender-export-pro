@@ -6,12 +6,11 @@ StyleConfig and emits a self-contained script runnable inside Blender 2.8x-4.x.
 """
 
 import datetime
-import json
 import pprint
 
+from . import __version__
 from .element_data import radius_of, color_of
 from .style_config import StyleConfig
-from .version import __version__
 
 def _mat(metallic=0.0, roughness=0.5, transmission=0.0, ior=1.45,
          subsurface=0.0, emission=0.0, tint=None):
@@ -462,7 +461,7 @@ RENDER_SAMPLES = {int(cfg.render_samples)!r}
 RESOLUTION = ({int(cfg.resolution_x)!r}, {int(cfg.resolution_y)!r})
 LABEL_MODE = {cfg.label_mode!r}
 LABEL_SIZE = {float(cfg.label_size)!r}
-LABEL_COLOR = {json.dumps([round(c, 4) for c in hex_to_rgb(cfg.label_color)])}
+LABEL_COLOR = {repr([round(c, 4) for c in hex_to_rgb(cfg.label_color)])}
 LABEL_OFFSET = {float(cfg.label_offset)!r}
 LABEL_FACE_CAMERA = {cfg.label_face_camera!r}
 RENDER_ON_RUN = {cfg.render_on_run!r}

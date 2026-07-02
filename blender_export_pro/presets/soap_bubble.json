@@ -1,0 +1,20 @@
+{
+    "atom_shape": "uv_sphere",
+    "atom_subdivisions": 5,
+    "atom_radius_mode": "cpk",
+    "atom_radius_scale": 0.65,
+    "atom_jitter": 0.1,
+    "bond_style": "cylinder",
+    "bond_radius": 0.06,
+    "show_multiple_bonds": false,
+    "bond_color_mode": "single",
+    "bond_color": "#DDEEFF",
+    "shade_smooth": true,
+    "material_preset": "glass",
+    "color_mode": "cpk",
+    "scene_preset": "studio",
+    "add_ground_plane": false,
+    "background_mode": "color",
+    "background_color": "#BFE3FF",
+    "render_engine": "cycles"
+}

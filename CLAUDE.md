@@ -9,9 +9,9 @@ preview, glTF/USD fallback).
 ```
 blender_export_pro/       # The plugin package (copy into ~/.moleditpy/plugins/)
 ├── __init__.py           # PLUGIN_* metadata, initialize(context), menu/export
-│                         #   actions, style switch + 3D Style menu sync
-├── version.py            # __version__ — single source for PLUGIN_VERSION and
-│                         #   the version stamp in exported scripts
+│                         #   actions, style switch + 3D Style menu sync.
+│                         #   PLUGIN_VERSION lives here as a LITERAL string —
+│                         #   the host AST-parses this file for metadata
 ├── style_config.py       # StyleConfig dataclass (single source of truth),
 │                         #   presets/settings I/O, option constants
 ├── element_data.py       # Colors/radii: prefers main app CPK_COLORS and RDKit
@@ -89,7 +89,11 @@ GUI modules (`dialog`, `preview_style`) import under `mock_optional_imports()`.
 
 ## Conventions
 
-- Version: semver in `version.py` (user preference — not date-based).
+- Version: semver, single source of truth is `PLUGIN_VERSION` in
+  `__init__.py` (user preference — not date-based). It MUST stay a literal
+  string: the host Plugin Manager AST-parses `__init__.py` and only reads
+  constant assignments (a name reference shows as "Unknown"). `__version__`
+  aliases it; `blender_codegen` stamps scripts via `from . import __version__`.
 - Radius semantics: base radius is RDKit vdW; `atom_radius_scale` 0.3 =
   main-app ball-and-stick look, 1.0 = space-filling. Presets are calibrated
   to this base.

@@ -1,5 +1,8 @@
 """Smoke tests for the plugin entry point and registration wiring."""
 
+import ast
+import os
+import re
 from unittest.mock import MagicMock
 
 from conftest import make_context, mock_optional_imports
@@ -13,6 +16,26 @@ def test_metadata_constants():
     assert plugin.PLUGIN_AUTHOR
     assert plugin.PLUGIN_DESCRIPTION
     assert plugin.PLUGIN_SUPPORTED_MOLEDITPY_VERSION.startswith(">=4")
+    assert plugin.__version__ == plugin.PLUGIN_VERSION
+
+
+def test_plugin_version_is_ast_visible_string_literal():
+    """The host Plugin Manager AST-parses __init__.py for metadata and only
+    reads constant assignments — PLUGIN_VERSION = __version__ (a Name node)
+    would display as 'Unknown'. Guard that it stays a plain string literal."""
+    init_path = os.path.join(os.path.dirname(plugin.__file__), "__init__.py")
+    with open(init_path, encoding="utf-8") as f:
+        tree = ast.parse(f.read())
+    found = None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "PLUGIN_VERSION":
+                    assert isinstance(node.value, ast.Constant), \
+                        "PLUGIN_VERSION must be a literal for the host AST parser"
+                    found = node.value.value
+    assert found == plugin.PLUGIN_VERSION
+    assert re.fullmatch(r"\d+\.\d+\.\d+", found), "semver expected"
 
 
 def test_initialize_registers_everything():

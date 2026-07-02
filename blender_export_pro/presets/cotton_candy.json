@@ -1,0 +1,22 @@
+{
+    "atom_shape": "uv_sphere",
+    "atom_subdivisions": 4,
+    "atom_radius_mode": "cpk",
+    "atom_radius_scale": 0.5,
+    "atom_jitter": 0.45,
+    "bond_style": "cylinder",
+    "bond_radius": 0.16,
+    "show_multiple_bonds": false,
+    "bond_color_mode": "single",
+    "bond_color": "#FFD6EC",
+    "deformation_noise": 0.15,
+    "deformation_noise_scale": 0.8,
+    "subdivision_level": 2,
+    "shade_smooth": true,
+    "material_preset": "velvet",
+    "color_mode": "single",
+    "single_color": "#FF9ECF",
+    "scene_preset": "studio",
+    "background_mode": "color",
+    "background_color": "#E8F4FF"
+}
