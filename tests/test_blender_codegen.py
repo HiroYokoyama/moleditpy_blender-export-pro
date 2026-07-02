@@ -237,8 +237,7 @@ def test_atom_color_override_survives_selection_remap():
     mol = make_ethanol_like()  # atoms C C O H
     cfg = StyleConfig(atom_color_overrides={"2": "#00FF00"})
     script = bc.generate_script_from_mol(mol, cfg, selected_indices=[1, 2])
-    assert '"color": [\n   0.0,\n   1.0,\n   0.0\n  ]' in (
-        script.replace("\r\n", "\n"))
+    assert "'color': [0.0, 1.0, 0.0]" in script
 
 
 # ----------------------------------------------------- background & render
