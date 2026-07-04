@@ -171,6 +171,21 @@ class StyleConfig:
     clear_scene: bool = True
     collection_name: str = "Molecule"
 
+    def __post_init__(self) -> None:
+        # NOT a dataclass field: never serialized (asdict ignores it) and never
+        # compared. Tracks whether the user has actually changed the style this
+        # session so a project that never touched the plugin saves nothing
+        # instead of a full ~70-field default blob in every .pmeprj.
+        self._touched = False
+
+    def mark_touched(self) -> None:
+        """Record that the style has been actively modified."""
+        self._touched = True
+
+    def is_touched(self) -> bool:
+        """True once the user has changed the style (see save handler)."""
+        return getattr(self, "_touched", False)
+
     def to_dict(self) -> dict:
         return asdict(self)
 
@@ -203,6 +218,8 @@ class StyleConfig:
         defaults = StyleConfig()
         for f in fields(self):
             setattr(self, f.name, getattr(defaults, f.name))
+        # Back to a pristine style (e.g. File > New) — nothing worth saving.
+        self._touched = False
 
 
 def settings_path() -> str:

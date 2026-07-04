@@ -1200,7 +1200,13 @@ class BlenderExportDialog(QDialog):
         self._pull_config()
         self._refresh_preview_if_active()
 
-    def _refresh_preview_if_active(self):
+    def _refresh_preview_if_active(self, mark: bool = True):
+        # Every genuine config mutation funnels through here as its final
+        # "apply" step, so this is the single choke point that marks the style
+        # touched (mark=False for the two non-mutating callers: close and ring
+        # row highlight). An untouched style is not saved into the project.
+        if mark and not self._loading:
+            self._cfg.mark_touched()
         from . import is_preview_style_active
         try:
             if is_preview_style_active(self._context):
@@ -1656,7 +1662,7 @@ class BlenderExportDialog(QDialog):
             set_highlighted_ring(self._ring_keys_by_row[row])
         else:
             set_highlighted_ring(None)
-        self._refresh_preview_if_active()
+        self._refresh_preview_if_active(mark=False)  # highlight only, no change
 
     def _reset_selected_ring(self):
         row = self.ring_table.currentRow()
@@ -1713,6 +1719,7 @@ class BlenderExportDialog(QDialog):
         name = self.preset_combo.currentText()
         path = self._presets.get(name)
         if path and sc.load_preset(self._cfg, path):
+            self._cfg.mark_touched()  # applying a preset changes the style
             self._refresh_widgets()
             self._refresh_ring_table()
             self._refresh_lights_table()
@@ -1840,7 +1847,7 @@ class BlenderExportDialog(QDialog):
         try:
             from .preview_style import set_highlighted_ring
             set_highlighted_ring(None)
-            self._refresh_preview_if_active()
+            self._refresh_preview_if_active(mark=False)  # closing is not a change
         except Exception:
             logging.exception("BlenderExportPro: failed to clear highlight")
         try:

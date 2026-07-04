@@ -68,6 +68,7 @@ def test_save_load_handlers_round_trip():
 
     style = plugin.get_style()
     style.material_preset = "glass"
+    style.mark_touched()
     saved = save_cb()
     assert saved["material_preset"] == "glass"
 
@@ -76,6 +77,44 @@ def test_save_load_handlers_round_trip():
 
     load_cb(saved)
     assert plugin.get_style().material_preset == "glass"
+
+
+def test_untouched_style_saves_nothing():
+    """A plugin the user never interacted with must not bloat the project:
+    the save handler returns None until the style is actually touched."""
+    ctx = make_context()
+    plugin.initialize(ctx)
+
+    save_cb = ctx.register_save_handler.call_args[0][0]
+    reset_cb = ctx.register_document_reset_handler.call_args[0][0]
+
+    # Fresh launch (defaults, possibly a last preset) — nothing to persist.
+    assert save_cb() is None
+
+    style = plugin.get_style()
+    style.mark_touched()
+    assert save_cb() is not None
+
+    # File > New resets to a pristine, untouched style again.
+    reset_cb()
+    assert save_cb() is None
+
+
+def test_load_handler_ignores_empty_payload():
+    """Loading a project whose stored value is None/{} must not mark the style
+    touched (which would re-save a full blob on the next save)."""
+    ctx = make_context()
+    plugin.initialize(ctx)
+
+    save_cb = ctx.register_save_handler.call_args[0][0]
+    load_cb = ctx.register_load_handler.call_args[0][0]
+    reset_cb = ctx.register_document_reset_handler.call_args[0][0]
+
+    reset_cb()
+    load_cb(None)
+    assert save_cb() is None
+    load_cb({})
+    assert save_cb() is None
 
 
 def test_open_panel_reuses_registered_window():

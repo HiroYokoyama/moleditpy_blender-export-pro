@@ -12,7 +12,7 @@ from .style_config import STYLE_NAME, StyleConfig, load_config
 PLUGIN_NAME = "Blender Export Pro"
 # Must stay a literal string: the host's Plugin Manager AST-parses this file
 # and only picks up constant assignments (Name references read as "Unknown").
-PLUGIN_VERSION = "1.0.0"
+PLUGIN_VERSION = "1.0.1"
 __version__ = PLUGIN_VERSION
 PLUGIN_AUTHOR = "HiroYokoyama"
 PLUGIN_DESCRIPTION = (
@@ -44,9 +44,26 @@ def initialize(context) -> None:
     context.add_export_action(
         "Export to 3D Model (.glb / .usda)…", lambda: quick_export_mesh(context))
 
-    context.register_save_handler(_style.to_dict)
-    context.register_load_handler(_style.update_from_dict)
+    context.register_save_handler(_save_style)
+    context.register_load_handler(_load_style)
     context.register_document_reset_handler(_style.reset_defaults)
+
+
+def _save_style():
+    """Serialize into the project only once the style has been touched.
+
+    An untouched plugin (the user never opened the panel or changed anything)
+    returns None instead of a full ~70-field style blob, so projects that never
+    used Blender Export Pro don't carry its settings in every .pmeprj.
+    """
+    return _style.to_dict() if _style.is_touched() else None
+
+
+def _load_style(data) -> None:
+    """Restore a saved style and mark it touched so re-saving keeps it."""
+    _style.update_from_dict(data)
+    if isinstance(data, dict) and data:
+        _style.mark_touched()
 
 
 def get_style() -> StyleConfig:

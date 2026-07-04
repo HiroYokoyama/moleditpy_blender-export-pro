@@ -14,6 +14,23 @@ def test_round_trip():
     assert restored == cfg
 
 
+def test_touched_flag_defaults_false_and_is_not_serialized():
+    cfg = StyleConfig()
+    assert cfg.is_touched() is False
+    assert "_touched" not in cfg.to_dict()
+
+    cfg.mark_touched()
+    assert cfg.is_touched() is True
+    assert "_touched" not in cfg.to_dict()  # still a private, non-field flag
+
+
+def test_reset_defaults_clears_touched():
+    cfg = StyleConfig()
+    cfg.mark_touched()
+    cfg.reset_defaults()
+    assert cfg.is_touched() is False
+
+
 def test_update_ignores_unknown_keys():
     cfg = StyleConfig()
     cfg.update_from_dict({"no_such_field": 1, "atom_jitter": 0.4})
