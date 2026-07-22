@@ -1,6 +1,7 @@
 # Blender Export Pro
 
 [![Tests](https://github.com/HiroYokoyama/moleditpy_blender-export-pro/actions/workflows/pytest.yml/badge.svg)](https://github.com/HiroYokoyama/moleditpy_blender-export-pro/actions/workflows/pytest.yml)
+![Test Coverage](https://img.shields.io/badge/coverage->90%25-green)
 [![Downloads](https://img.shields.io/github/downloads/HiroYokoyama/moleditpy_blender-export-pro/total)](https://github.com/HiroYokoyama/moleditpy_blender-export-pro/releases)
 
 A [MoleditPy](https://github.com/HiroYokoyama/python_molecular_editor) V4 plugin
