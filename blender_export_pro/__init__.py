@@ -12,7 +12,7 @@ from .style_config import STYLE_NAME, StyleConfig, load_config
 PLUGIN_NAME = "Blender Export Pro"
 # Must stay a literal string: the host's Plugin Manager AST-parses this file
 # and only picks up constant assignments (Name references read as "Unknown").
-PLUGIN_VERSION = "1.1.0"
+PLUGIN_VERSION = "1.1.1"
 __version__ = PLUGIN_VERSION
 PLUGIN_AUTHOR = "HiroYokoyama"
 PLUGIN_DESCRIPTION = (
