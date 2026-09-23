@@ -12,7 +12,7 @@ from .style_config import STYLE_NAME, StyleConfig, load_config
 PLUGIN_NAME = "Blender Export Pro"
 # Must stay a literal string: the host's Plugin Manager AST-parses this file
 # and only picks up constant assignments (Name references read as "Unknown").
-PLUGIN_VERSION = "1.1.1"
+PLUGIN_VERSION = "1.1.2"
 __version__ = PLUGIN_VERSION
 PLUGIN_AUTHOR = "HiroYokoyama"
 PLUGIN_DESCRIPTION = (
@@ -20,7 +20,7 @@ PLUGIN_DESCRIPTION = (
     "custom styles with a live 3D preview and one-click bpy script generation."
 )
 PLUGIN_CATEGORY = "Visualization"
-PLUGIN_TAGS = ["blender", "export", "rendering", "visualization"]
+PLUGIN_TAGS = ["Visualization"]
 PLUGIN_DEPENDENCIES = []
 PLUGIN_SUPPORTED_MOLEDITPY_VERSION = ">=4.0.0, <5.0.0"
 
