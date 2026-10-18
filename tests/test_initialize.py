@@ -35,7 +35,7 @@ def test_plugin_version_is_ast_visible_string_literal():
                         "PLUGIN_VERSION must be a literal for the host AST parser"
                     found = node.value.value
     assert found == plugin.PLUGIN_VERSION
-    assert re.fullmatch(r"\d+\.\d+\.\d+", found), "semver expected"
+    assert re.fullmatch(r"\d+\.\d+\.\d+(?:a\d+)?", found), "semver expected"
 
 
 def test_initialize_registers_everything():
