@@ -2,7 +2,7 @@
 
 conftest.py's blanket MagicMock finder makes QDialog un-subclassable, so the
 normal test files can only smoke-test dialog.py at the import level (7%
-coverage). This file installs genuine pure-Python PyQt6 stand-ins
+coverage). This file installs genuine pure-Python PySide6 stand-ins
 (dialog_qt_stubs.py) for the exact duration of the module, imports dialog.py
 fresh under them, and drives the dialog's real methods so the branch logic
 actually executes. The fixture restores every sys.modules mutation so the
@@ -19,7 +19,7 @@ import pytest
 import dialog_qt_stubs
 from conftest import make_benzene_like, make_context, make_ethanol_like
 
-_PYQT_MODULES = ("PyQt6", "PyQt6.QtCore", "PyQt6.QtGui", "PyQt6.QtWidgets")
+_PYQT_MODULES = ("PySide6", "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets")
 
 
 @pytest.fixture

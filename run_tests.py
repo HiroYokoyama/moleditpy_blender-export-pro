@@ -2,7 +2,7 @@
 """Test runner for the Blender Export Pro plugin.
 
 Thin wrapper around pytest so the suite can be run the same way locally and
-in CI, from any working directory. The suite is fully headless: PyQt6 /
+in CI, from any working directory. The suite is fully headless: PySide6 /
 pyvista / numpy / rdkit are mocked or duck-typed (see tests/conftest.py),
 so only pytest itself is required (pytest-cov for --coverage).
 

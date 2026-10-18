@@ -1,4 +1,4 @@
-"""Blender Export Pro configuration dialog (PyQt6).
+"""Blender Export Pro configuration dialog (PySide6).
 
 Layout philosophy: a "Quick Start" section on top covers the whole basic
 workflow in three clicks (pick preset -> preview in 3D -> export), while every
@@ -9,9 +9,9 @@ Uses the hide-on-close singleton pattern so state survives while the app runs.
 import logging
 import os
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QCloseEvent
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QCloseEvent
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,

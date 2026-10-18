@@ -15,7 +15,7 @@ def test_metadata_constants():
     assert plugin.PLUGIN_VERSION
     assert plugin.PLUGIN_AUTHOR
     assert plugin.PLUGIN_DESCRIPTION
-    assert plugin.PLUGIN_SUPPORTED_MOLEDITPY_VERSION.startswith(">=4")
+    assert plugin.PLUGIN_SUPPORTED_MOLEDITPY_VERSION.startswith(">=5")
     assert plugin.__version__ == plugin.PLUGIN_VERSION
 
 

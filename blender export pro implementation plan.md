@@ -53,7 +53,7 @@ Source: `PLUGIN_DEVELOPMENT_MANUAL_V4.html` (official).
 plugins/
   BlenderExportPro/
       __init__.py          # PLUGIN_* metadata + initialize(context)
-      dialog.py             # PyQt6 config panel (singleton dialog pattern)
+      dialog.py             # PySide6 config panel (singleton dialog pattern)
       style_config.py       # StyleConfig dataclass — single source of truth
       preview_style.py      # register_3d_style callback: in-app live preview
       blender_codegen.py    # StyleConfig + molecule -> bpy script (string templating)

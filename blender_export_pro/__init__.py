@@ -22,7 +22,7 @@ PLUGIN_DESCRIPTION = (
 PLUGIN_CATEGORY = "Visualization"
 PLUGIN_TAGS = ["Visualization"]
 PLUGIN_DEPENDENCIES = []
-PLUGIN_SUPPORTED_MOLEDITPY_VERSION = ">=4.0.0, <5.0.0"
+PLUGIN_SUPPORTED_MOLEDITPY_VERSION = ">=5.0.0a1, <6.0.0"
 
 STANDARD_STYLE = "ball_and_stick"
 
@@ -160,7 +160,7 @@ def open_panel(context) -> None:
 
 def quick_export(context) -> None:
     """Export menu action: generate a script with the current style."""
-    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
 
     from .blender_codegen import generate_script_from_mol
 
@@ -197,7 +197,7 @@ def quick_export(context) -> None:
 
 def quick_export_mesh(context) -> None:
     """Export menu action: write a Blender-free .glb / .usda 3D model."""
-    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
 
     from .mesh_export import export_mesh_file
 

@@ -16,13 +16,13 @@ from conftest import make_context, make_ethanol_like
 
 import blender_export_pro as plugin
 
-_PYQT_MODULES = ("PyQt6", "PyQt6.QtCore", "PyQt6.QtGui", "PyQt6.QtWidgets")
+_PYQT_MODULES = ("PySide6", "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets")
 
 
 @pytest.fixture
 def qt_stubs():
-    """Install dialog_qt_stubs' fake PyQt6 so quick_export()'s local
-    ``from PyQt6.QtWidgets import QFileDialog, QMessageBox`` resolves to
+    """Install dialog_qt_stubs' fake PySide6 so quick_export()'s local
+    ``from PySide6.QtWidgets import QFileDialog, QMessageBox`` resolves to
     controllable stand-ins instead of MagicMock or the real Qt bindings."""
     snapshot = {name: sys.modules.get(name) for name in _PYQT_MODULES}
     dialog_qt_stubs.install()

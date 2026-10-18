@@ -20,7 +20,7 @@ blender_export_pro/       # The plugin package (copy into ~/.moleditpy/plugins/)
 │                         #   shared resolvers (radius/color/ring/hide/lights)
 ├── preview_style.py      # In-app PyVista preview (register_3d_style callback)
 ├── mesh_export.py        # Blender-free .glb / .usda writers (pure stdlib)
-├── dialog.py             # PyQt6 tabbed panel (Quick Start + Advanced tabs)
+├── dialog.py             # PySide6 tabbed panel (Quick Start + Advanced tabs)
 ├── presets/              # Bundled JSON style presets (26+)
 └── settings.json         # Runtime user settings — gitignored, never commit
 tests/                    # Headless pytest suite (no GUI/chem deps needed)
@@ -36,7 +36,7 @@ python -m pytest tests/ -k ring     # by keyword
 ```
 
 All tests run headlessly. `tests/conftest.py` provides:
-- `mock_optional_imports()` — MetaPathFinder that replaces PyQt6 / pyvista /
+- `mock_optional_imports()` — MetaPathFinder that replaces PySide6 / pyvista /
   vtk / numpy / rdkit / moleditpy with MagicMock (DECIMER-plugin pattern).
 - `FakeMol` / `make_benzene_like()` / `make_ethanol_like()` — duck-typed
   RDKit stand-ins (conformer, bonds, ring info, aromatic flags).

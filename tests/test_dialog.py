@@ -1,4 +1,4 @@
-"""Import-level smoke tests for the GUI modules under mocked PyQt6/pyvista."""
+"""Import-level smoke tests for the GUI modules under mocked PySide6/pyvista."""
 
 import ast
 import importlib
@@ -24,7 +24,7 @@ def test_dialog_module_imports_under_mocks():
 def test_dialog_widget_fields_match_style_config():
     """Every entry in _WIDGET_FIELDS must be a real StyleConfig attribute.
 
-    The class object is a MagicMock under mocked PyQt6, so read the tuple
+    The class object is a MagicMock under mocked PySide6, so read the tuple
     from the source via AST instead.
     """
     from blender_export_pro.style_config import StyleConfig
