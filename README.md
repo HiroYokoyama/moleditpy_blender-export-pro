@@ -145,4 +145,8 @@ or duck-typed; no GUI or chemistry libraries are required (only `pytest`).
 
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE).
+LGPL-3.0-or-later — see [LICENSE](LICENSE).
+
+## Licensing scope
+
+First-party code in this migration is LGPL-3.0-or-later. See [LICENSE](LICENSE), [COPYING](COPYING) and [dependency/provenance terms](LICENSING.md). Third-party components and historical releases retain their own terms.

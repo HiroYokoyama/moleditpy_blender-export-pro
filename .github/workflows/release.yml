@@ -54,7 +54,7 @@ jobs:
       - name: Build release package
         run: |
           TAG="$VERSION"
-          cp README.md LICENSE blender_export_pro/
+          cp README.md LICENSE COPYING LICENSING.md blender_export_pro/
           zip -r "blender_export_pro_${TAG}.zip" blender_export_pro/ \
             --exclude "*/__pycache__/*" "*/.git/*" "*/settings.json"
 
