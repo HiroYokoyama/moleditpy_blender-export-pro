@@ -2,7 +2,7 @@
 
 The core modules (style_config, element_data, blender_codegen) are pure
 stdlib and import directly. GUI-facing modules (dialog, preview_style) are
-imported under ``mock_optional_imports()`` which stubs PyQt6/pyvista/numpy.
+imported under ``mock_optional_imports()`` which stubs PySide6/pyvista/numpy.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 BLOCKED_TOPS: frozenset[str] = frozenset(
-    {"PyQt6", "pyvista", "vtk", "numpy", "rdkit", "moleditpy"}
+    {"PySide6", "pyvista", "vtk", "numpy", "rdkit", "moleditpy"}
 )
 
 

@@ -1,4 +1,4 @@
-"""Rich, hand-built PyQt6 stand-ins for driving ``dialog.py``'s real logic.
+"""Rich, hand-built PySide6 stand-ins for driving ``dialog.py``'s real logic.
 
 Unlike ``conftest.py``'s blanket ``MagicMock`` MetaPathFinder (used by every
 other test file so that import-level smoke tests stay cheap), these are
@@ -17,7 +17,7 @@ from __future__ import annotations
 import sys
 import types
 
-_MODULE_NAMES = ("PyQt6", "PyQt6.QtCore", "PyQt6.QtGui", "PyQt6.QtWidgets")
+_MODULE_NAMES = ("PySide6", "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets")
 
 
 class _Signal:
@@ -499,15 +499,15 @@ class QDialog(QWidget):
 
 
 def install():
-    """Install the stub PyQt6 package tree into sys.modules (idempotent)."""
-    qt_core = types.ModuleType("PyQt6.QtCore")
+    """Install the stub PySide6 package tree into sys.modules (idempotent)."""
+    qt_core = types.ModuleType("PySide6.QtCore")
     qt_core.Qt = Qt
 
-    qt_gui = types.ModuleType("PyQt6.QtGui")
+    qt_gui = types.ModuleType("PySide6.QtGui")
     qt_gui.QCloseEvent = QCloseEvent
     qt_gui.QColor = QColor
 
-    qt_widgets = types.ModuleType("PyQt6.QtWidgets")
+    qt_widgets = types.ModuleType("PySide6.QtWidgets")
     qt_widgets.QAbstractItemView = QAbstractItemView
     qt_widgets.QCheckBox = QCheckBox
     qt_widgets.QComboBox = QComboBox
@@ -530,15 +530,15 @@ def install():
     qt_widgets.QVBoxLayout = QVBoxLayout
     qt_widgets.QWidget = QWidget
 
-    pyqt6 = types.ModuleType("PyQt6")
-    pyqt6.QtCore = qt_core
-    pyqt6.QtGui = qt_gui
-    pyqt6.QtWidgets = qt_widgets
+    pyside6 = types.ModuleType("PySide6")
+    pyside6.QtCore = qt_core
+    pyside6.QtGui = qt_gui
+    pyside6.QtWidgets = qt_widgets
 
-    sys.modules["PyQt6"] = pyqt6
-    sys.modules["PyQt6.QtCore"] = qt_core
-    sys.modules["PyQt6.QtGui"] = qt_gui
-    sys.modules["PyQt6.QtWidgets"] = qt_widgets
+    sys.modules["PySide6"] = pyside6
+    sys.modules["PySide6.QtCore"] = qt_core
+    sys.modules["PySide6.QtGui"] = qt_gui
+    sys.modules["PySide6.QtWidgets"] = qt_widgets
 
 
 def remove():
