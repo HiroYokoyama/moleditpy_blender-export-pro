@@ -115,3 +115,7 @@ Uses `PluginContext` from
 Direct main-window access is limited to `view_3d_manager.set_3d_style`,
 `view_3d_manager.plotter`, and `init_manager.style_button` (menu sync) —
 all guarded with getattr/try.
+
+## Copied maintenance scripts
+
+See [scripts/COMMON_TOOLS.md](scripts/COMMON_TOOLS.md) for canonical ownership, pinned versions and update instructions. Common script unit tests stay in the canonical repository; retain this repository's own integration checks.
