@@ -1,0 +1,20 @@
+{
+  "source": "blender_export_pro/__init__.py",
+  "title": "Blender Export Pro",
+  "package": "blender_export_pro",
+  "archive": "blender_export_pro_{version}.zip",
+  "assets": [
+    "blender_export_pro_{version}.zip"
+  ],
+  "include": [
+    "README.md",
+    "LICENSE",
+    "COPYING",
+    "LICENSING.md"
+  ],
+  "exclude": [
+    "*/__pycache__/*",
+    "*/.git/*",
+    "*/settings.json"
+  ]
+}
