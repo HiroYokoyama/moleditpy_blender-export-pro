@@ -55,6 +55,7 @@ from .style_config import (
     SCENE_PRESETS,
     StyleConfig,
 )
+from .wheel_guard import install_wheel_guard
 
 
 # Warm "old paper" theme: ivory paper, ink text, terracotta accent, serif
@@ -229,6 +230,7 @@ class BlenderExportDialog(QDialog):
         self._scroll = QScrollArea(self)
         self._scroll.setWidgetResizable(True)
         self._scroll.setWidget(self._tabs)
+        install_wheel_guard(self._tabs)
         self._scroll.setVisible(False)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._scroll.setMinimumHeight(400)
