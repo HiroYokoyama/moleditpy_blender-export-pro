@@ -30,6 +30,8 @@ def dlg_mod():
     dialog_qt_stubs.install()
     try:
         mod = importlib.import_module("blender_export_pro.dialog")
+        # The wheel guard needs real Qt event filters, which the stand-ins lack.
+        mod.install_wheel_guard = lambda root: None
         yield mod
     finally:
         sys.modules.pop("blender_export_pro.dialog", None)
